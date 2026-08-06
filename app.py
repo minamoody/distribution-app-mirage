@@ -11,7 +11,7 @@ from streamlit_folium import st_folium
 # 1. PAGE CONFIG & THEME
 # -------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Fleet Command & Dispatch Engine",
+    page_title="Mirage AI Fleet & Wing Dispatch Command",
     layout="wide",
     page_icon="⚡",
     initial_sidebar_state="expanded"
@@ -40,12 +40,12 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM technicians")
     if c.fetchone()[0] == 0:
         default_data = [
-            ("أحمد عماد", "201000000001", "Brand A", "Installation,Maintenance", "Motorcycle", 8, "Shorouk", "Full Day", "Standard Kit"),
-            ("شعبان", "201000000002", "Brand A", "Installation", "Car", 10, "Madinaty", "Full Day", "Heavy Kit, Replacement Parts"),
-            ("كيمكو", "201000000003", "Brand B", "Installation,Maintenance", "Car", 12, "Maadi", "Full Day", "Heavy Kit, Replacement Parts"),
-            ("محمد سامي", "201000000004", "Brand B", "Customer Service", "Motorcycle", 7, "Maadi", "Half Day", "Standard Kit"),
-            ("تكنو", "201000000005", "Brand C", "Installation", "Car", 10, "Tagamoa", "Full Day", "Heavy Kit"),
-            ("حسن", "201000000006", "Brand C", "Customer Service", "Motorcycle", 8, "Tagamoa", "Full Day", "Standard Kit"),
+            ("أحمد عماد", "201000000001", "Wing A", "Installation,Maintenance", "Motorcycle", 8, "Shorouk", "Full Day", "Standard Kit"),
+            ("شعبان", "201000000002", "Wing A", "Installation", "Car", 10, "Madinaty", "Full Day", "Heavy Kit, Replacement Parts"),
+            ("كيمكو", "201000000003", "Wing B", "Installation,Maintenance", "Car", 12, "Maadi", "Full Day", "Heavy Kit, Replacement Parts"),
+            ("محمد سامي", "201000000004", "Wing B", "Customer Service", "Motorcycle", 7, "Maadi", "Half Day", "Standard Kit"),
+            ("تكنو", "201000000005", "Wing C", "Installation", "Car", 10, "Tagamoa", "Full Day", "Heavy Kit"),
+            ("حسن", "201000000006", "Wing C", "Customer Service", "Motorcycle", 8, "Tagamoa", "Full Day", "Standard Kit"),
         ]
         c.executemany("INSERT INTO technicians (name, phone, brand, skills, vehicle, capacity, home_zone, shift_type, parts_inventory) VALUES (?,?,?,?,?,?,?,?,?)", default_data)
         conn.commit()
@@ -117,7 +117,8 @@ def generate_driver_whatsapp(phone, tech_name, orders):
     for i, (_, row) in enumerate(orders.iterrows(), 1):
         prio = "🚨 VIP" if str(row.get('Priority', '')).lower() in ['high', 'vip', 'emergency'] else "Standard"
         slot = row.get('Time_Slot', 'Morning (9 AM - 1 PM)')
-        msg += f"*{i}. WO:* {row.get('Work_Order', 'N/A')} [{prio}]\n"
+        wing = row.get('Brand', 'General')
+        msg += f"*{i}. WO:* {row.get('Work_Order', 'N/A')} [{wing}] [{prio}]\n"
         msg += f"⏰ *Slot:* {slot}\n"
         msg += f"📍 *Area:* {row.get('City', 'N/A')}\n"
         msg += f"🛠️ *Type:* {row.get('Service_Type', 'Standard')}\n"
@@ -127,12 +128,12 @@ def generate_driver_whatsapp(phone, tech_name, orders):
     clean_phone = str(phone).replace("+", "").replace(" ", "")
     return f"https://wa.me/{clean_phone}?text={encoded_msg}"
 
-def generate_customer_whatsapp(phone, customer_name, wo_number, tech_name, slot):
+def generate_customer_whatsapp(phone, customer_name, wo_number, tech_name, slot, wing_name):
     msg = f"Dear {customer_name},\n"
-    msg += f"Your Mirage Service Request *#{wo_number}* has been scheduled for today!\n"
+    msg += f"Your Service Request *#{wo_number}* with *{wing_name}* has been scheduled for today!\n"
     msg += f"👨‍🔧 *Assigned Specialist:* {tech_name}\n"
     msg += f"⏰ *Time Slot:* {slot}\n\n"
-    msg += "Our technician will contact you 30 minutes before arrival. Thank you!"
+    msg += "Our specialist will contact you 30 minutes prior to arrival. Thank you!"
     encoded_msg = urllib.parse.quote(msg)
     clean_phone = str(phone).replace("+", "").replace(" ", "")
     return f"https://wa.me/{clean_phone}?text={encoded_msg}"
@@ -212,7 +213,7 @@ def run_smart_dispatch(orders_df, tech_df, allow_overflow=True):
 # -------------------------------------------------------------------
 # 5. DASHBOARD LAYOUT & TABS
 # -------------------------------------------------------------------
-st.title("⚡ AI Fleet Command & Multi-Brand Dispatch System")
+st.title("⚡ Mirage AI Fleet & Wing Dispatch Command")
 
 nav_tab1, nav_tab2, nav_tab3, nav_tab4, nav_tab5, nav_tab6 = st.tabs([
     "🚀 Dispatch Hub", 
@@ -220,17 +221,18 @@ nav_tab1, nav_tab2, nav_tab3, nav_tab4, nav_tab5, nav_tab6 = st.tabs([
     "📱 Driver & Client Portals", 
     "🖨️ Printable Manifests",
     "📊 Analytics & Payroll", 
-    "⚙️ Master Database Setup"
+    "⚙️ Master Wing Database"
 ])
 
 tech_df = get_tech_df()
 
 # -------------------------------------------------------------------
-# TAB 1: DISPATCH HUB (SEPARATE UPLOAD SLOTS PER WING)
+# TAB 1: DISPATCH HUB (NAMED SEPARATE UPLOAD SLOTS)
 # -------------------------------------------------------------------
 with nav_tab1:
-    st.header("📂 Daily Order Allocation by Company Wing")
+    st.header("📂 Daily Wing Order Uploads & Allocation")
     
+    # Extract unique registered wings from database
     registered_wings = sorted([str(b).strip() for b in tech_df['brand'].unique() if pd.notna(b)])
     
     col_files, col_opts = st.columns([2, 1])
@@ -238,26 +240,26 @@ with nav_tab1:
     all_uploaded_orders = []
     
     with col_files:
-        st.subheader("📤 Upload Dedicated Orders per Wing")
-        st.caption("Upload each wing's Excel sheet into its corresponding box below.")
+        st.subheader("📤 Upload Dedicated Sheets per Wing")
+        st.caption("Select each company wing's Excel/CSV file in its respective box.")
         
-        # Render a separate file uploader for each registered wing
+        # Dedicated box for each registered wing
         for wing in registered_wings:
-            with st.expander(f"🏢 Wing: {wing}", expanded=True):
+            with st.expander(f"🏢 Wing: **{wing}**", expanded=True):
                 wing_file = st.file_uploader(
-                    f"Upload order file for {wing}", 
+                    f"Upload orders for {wing}", 
                     type=["xlsx", "csv"], 
                     key=f"uploader_{wing}"
                 )
                 if wing_file:
                     df_w = pd.read_csv(wing_file) if wing_file.name.endswith('.csv') else pd.read_excel(wing_file)
-                    df_w['Brand'] = wing  # Stamp brand automatically
+                    df_w['Brand'] = wing  # Automatically tag order with wing name
                     all_uploaded_orders.append(df_w)
                     st.success(f"Loaded {len(df_w)} orders for {wing}")
         
-        # Optional: Custom or Unlisted Wing Upload
-        with st.expander("➕ Upload Orders for Other / Unlisted Wing", expanded=False):
-            custom_wing_name = st.text_input("Enter Wing/Brand Name", placeholder="e.g. Brand D")
+        # Custom Wing Upload Box
+        with st.expander("➕ Upload Orders for New / Unlisted Wing", expanded=False):
+            custom_wing_name = st.text_input("Enter New Wing Name", placeholder="e.g. Mirage Commercial Wing")
             custom_file = st.file_uploader("Upload order file", type=["xlsx", "csv"], key="uploader_custom")
             if custom_file and custom_wing_name:
                 df_c = pd.read_csv(custom_file) if custom_file.name.endswith('.csv') else pd.read_excel(custom_file)
@@ -266,8 +268,8 @@ with nav_tab1:
                 st.success(f"Loaded {len(df_c)} orders for {custom_wing_name}")
                 
     with col_opts:
-        st.markdown("### Dispatch Settings")
-        allow_overflow = st.checkbox("Allow Cross-Brand Overflow", value=True, help="Allow drivers from another wing to help out if a wing is over capacity.")
+        st.markdown("### Dispatch Rules")
+        allow_overflow = st.checkbox("Allow Cross-Wing Overflow", value=True, help="If Wing A drivers hit 100% capacity, allow drivers from Wing B to assist.")
         fuel_cost_per_km = st.number_input("Est. Fuel Cost per KM (EGP)", value=4.5, step=0.5)
         base_bonus_rate = st.number_input("Driver Bonus Per Job Over 5 Jobs (EGP)", value=50, step=10)
 
@@ -276,9 +278,9 @@ with nav_tab1:
         st.session_state['df_raw'] = df_raw
         
         st.markdown("---")
-        st.markdown("### 📊 Order Summary Across Wings")
+        st.markdown("### 📊 Consolidated Order Summary")
         wing_summary = df_raw['Brand'].value_counts().reset_index()
-        wing_summary.columns = ['Wing / Brand', 'Total Orders Loaded']
+        wing_summary.columns = ['Wing Name', 'Total Orders Received']
         st.dataframe(wing_summary, use_container_width=True)
         
         if st.button("⚡ Run AI Sequence & Priority Dispatch", type="primary"):
@@ -286,16 +288,16 @@ with nav_tab1:
             st.session_state['processed_orders'] = processed_orders
             st.session_state['tracker'] = tracker
             
-            st.subheader("📋 Dispatch Allocation Results")
+            st.subheader("📋 Final Dispatch Allocation")
             display_cols = [c for c in ['Work_Order', 'Brand', 'City', 'Time_Slot', 'Priority', 'Assigned_Tech', 'Stop_Sequence'] if c in processed_orders.columns]
             st.dataframe(processed_orders[display_cols], use_container_width=True)
             
-            # Excel Export
+            # Master Excel Download
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                processed_orders.to_excel(writer, sheet_name='Master Dispatch', index=False)
+                processed_orders.to_excel(writer, sheet_name='Master Dispatch Plan', index=False)
             st.download_button(
-                label="📥 Download Master Dispatch Excel Report",
+                label="📥 Download Master Daily Excel Report",
                 data=buffer.getvalue(),
                 file_name="Master_Daily_Dispatch_Plan.xlsx",
                 mime="application/vnd.ms-excel",
@@ -320,7 +322,7 @@ with nav_tab2:
             
             folium.Marker(
                 location=coords,
-                popup=f"Stop #{seq}<br>Order: {row.get('Work_Order', 'N/A')}<br>Wing: {row.get('Brand', 'N/A')}<br>Tech: {tech}<br>Area: {row['City']}",
+                popup=f"Stop #{seq}<br>WO: {row.get('Work_Order', 'N/A')}<br>Wing: {row.get('Brand', 'N/A')}<br>Driver: {tech}<br>Area: {row['City']}",
                 tooltip=f"Stop {seq}: {tech} ({row['City']})",
                 icon=folium.Icon(color=color, icon="info-sign")
             ).add_to(m)
@@ -333,7 +335,7 @@ with nav_tab2:
 # TAB 3: DRIVER & CLIENT WHATSAPP PORTALS
 # -------------------------------------------------------------------
 with nav_tab3:
-    st.header("📱 Driver Route & Customer Dispatch Portals")
+    st.header("📱 Driver & Customer WhatsApp Portals")
     if 'processed_orders' in st.session_state:
         orders = st.session_state['processed_orders']
         techs = orders['Assigned_Tech'].unique()
@@ -341,7 +343,7 @@ with nav_tab3:
         col_dr, col_cl = st.columns(2)
         
         with col_dr:
-            st.subheader("👨‍🔧 Driver WhatsApp Route Links")
+            st.subheader("👨‍🔧 Driver Route Manifests & Google Maps Links")
             for tech in techs:
                 if tech == "Unassigned": continue
                 t_orders = orders[orders['Assigned_Tech'] == tech].sort_values(by='Stop_Sequence')
@@ -349,12 +351,12 @@ with nav_tab3:
                 phone = tech_info['phone'] if tech_info is not None else "201000000000"
                 wa_url = generate_driver_whatsapp(phone, tech, t_orders)
                 
-                with st.expander(f"📲 {tech} ({len(t_orders)} Jobs)"):
-                    st.markdown(f"[🚀 **Send Route & Navigation to Driver via WhatsApp**]({wa_url})", unsafe_allow_html=True)
+                with st.expander(f"📲 {tech} ({len(t_orders)} Jobs assigned)"):
+                    st.markdown(f"[🚀 **Send Google Maps Route via WhatsApp**]({wa_url})", unsafe_allow_html=True)
                     st.dataframe(t_orders[['Stop_Sequence', 'Work_Order', 'Brand', 'City', 'Time_Slot']], use_container_width=True)
                     
         with col_cl:
-            st.subheader("📲 Customer Automated SMS/WhatsApp Engine")
+            st.subheader("📲 Automated Customer Alerts")
             for idx, r in orders.iterrows():
                 if r['Assigned_Tech'] == "Unassigned": continue
                 cust_phone = str(r.get('Customer_Phone', '201000000000'))
@@ -362,11 +364,12 @@ with nav_tab3:
                 wo = str(r.get('Work_Order', 'N/A'))
                 tech = r['Assigned_Tech']
                 slot = r.get('Time_Slot', 'Morning (9 AM - 1 PM)')
+                wing = r.get('Brand', 'Mirage')
                 
-                cust_wa_url = generate_customer_whatsapp(cust_phone, cust_name, wo, tech, slot)
-                st.markdown(f"**WO #{wo}** ({cust_name}) ➔ [{tech}] | [📩 Send Customer Notification]({cust_wa_url})")
+                cust_wa_url = generate_customer_whatsapp(cust_phone, cust_name, wo, tech, slot, wing)
+                st.markdown(f"**WO #{wo}** ({cust_name}) ➔ [{tech}] | [📩 Notify Customer]({cust_wa_url})")
     else:
-        st.info("Run dispatch to activate messaging portals.")
+        st.info("Run dispatch to populate messaging portals.")
 
 # -------------------------------------------------------------------
 # TAB 4: PRINTABLE MANIFESTS
@@ -390,10 +393,10 @@ with nav_tab4:
         st.info("Run dispatch to generate manifests.")
 
 # -------------------------------------------------------------------
-# TAB 5: ANALYTICS, FUEL & BONUS PAYROLL
+# TAB 5: ANALYTICS & PAYROLL
 # -------------------------------------------------------------------
 with nav_tab5:
-    st.header("📊 Performance, Fuel & Driver Bonus Analytics")
+    st.header("📊 Fleet Analytics & Bonus Payroll")
     if 'processed_orders' in st.session_state:
         orders = st.session_state['processed_orders']
         tracker = st.session_state['tracker']
@@ -407,7 +410,7 @@ with nav_tab5:
         total_fuel_cost = est_distance * fuel_cost_per_km
         
         col1.metric("Total Jobs", total_orders)
-        col2.metric("Allocation Efficiency", f"{(assigned_count/total_orders)*100:.1f}%")
+        col2.metric("Allocation Rate", f"{(assigned_count/total_orders)*100:.1f}%")
         col3.metric("Est. Fleet Distance", f"{est_distance} KM")
         col4.metric("Est. Fuel Allowance", f"{total_fuel_cost:,.0f} EGP")
         
@@ -419,9 +422,9 @@ with nav_tab5:
             payroll_rows.append({
                 "Technician": k,
                 "Vehicle": v['vehicle'],
-                "Wing / Brand": v['brand'],
-                "Jobs Completed": v['assigned'],
-                "Daily Capacity": v['capacity'],
+                "Primary Wing": v['brand'],
+                "Jobs Assigned": v['assigned'],
+                "Capacity": v['capacity'],
                 "Fuel Allowance (EGP)": f"{fuel:,.0f}",
                 "Productivity Bonus (EGP)": f"{bonus:,.0f}"
             })
@@ -430,33 +433,22 @@ with nav_tab5:
         st.info("Run dispatch to populate analytics.")
 
 # -------------------------------------------------------------------
-# TAB 6: MASTER DATABASE SETUP
+# TAB 6: MASTER WING & DRIVER DATABASE SETUP
 # -------------------------------------------------------------------
 with nav_tab6:
-    st.header("⚙️ Master Multi-Brand Database & Vehicle Inventory")
+    st.header("⚙️ Master Wing Database & Inventory Setup")
+    st.caption("You can edit driver names, assigned wings (Brand column), vehicle types, and parts inventory below.")
     
-    st.subheader("📤 Bulk Upload Brand Technician Databases")
-    uploaded_brand_files = st.file_uploader("Select technician database files", type=["xlsx", "csv"], accept_multiple_files=True, key="tech_multi_uploader")
-    
-    if uploaded_brand_files:
-        all_new_techs = []
-        for file in uploaded_brand_files:
-            b_df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
-            if 'brand' not in [c.lower() for c in b_df.columns]:
-                brand_name = file.name.split('.')[0].replace('_', ' ').replace('Techs', '').replace('techs', '').strip()
-                b_df['brand'] = brand_name
-            all_new_techs.append(b_df)
-            
-        if all_new_techs and st.button("📥 Import All Brand Databases", type="primary"):
-            merged_techs = pd.concat(all_new_techs, ignore_index=True)
-            merged_techs.columns = [c.lower().strip() for c in merged_techs.columns]
-            save_tech_df(merged_techs)
-            st.success("✅ Master Database updated successfully!")
-            st.rerun()
-            
-    st.markdown("---")
-    st.subheader("✏️ Interactive Master Technician Table")
-    edited_df = st.data_editor(tech_df, num_rows="dynamic", use_container_width=True)
-    if st.button("💾 Save Database Changes"):
+    st.subheader("✏️ Master Driver & Wing Table")
+    edited_df = st.data_editor(
+        tech_df, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "brand": st.column_config.TextColumn("Wing / Brand Name", help="Name of the company wing this driver belongs to.")
+        }
+    )
+    if st.button("💾 Save Database Changes", type="primary"):
         save_tech_df(edited_df)
-        st.success("Database saved successfully!")
+        st.success("Database and wing list updated successfully!")
+        st.rerun()
