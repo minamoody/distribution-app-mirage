@@ -129,11 +129,21 @@ if selected_lang == "العربية":
     """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------------
-# 3. DATABASE SETUP WITH START LOCATION SWITCH
+# 3. DATABASE SETUP WITH AUTO MIGRATION & SAFE RECOVERY
 # -------------------------------------------------------------------
 def init_db():
     conn = sqlite3.connect("dispatch_system.db")
     c = conn.cursor()
+    
+    # Check existing table schema
+    c.execute("PRAGMA table_info(technicians)")
+    existing_cols = [col[1] for col in c.fetchall()]
+    
+    # Reset table if it exists without updated columns
+    if existing_cols and ("status" not in existing_cols or "start_type" not in existing_cols):
+        c.execute("DROP TABLE technicians")
+        conn.commit()
+        existing_cols = []
     
     c.execute("""
         CREATE TABLE IF NOT EXISTS technicians (
@@ -178,6 +188,20 @@ def get_tech_df():
     conn = sqlite3.connect("dispatch_system.db")
     df = pd.read_sql_query("SELECT * FROM technicians", conn)
     conn.close()
+    
+    # Guarantee critical columns exist in memory
+    defaults = {
+        'start_type': 'Mirage Service Center',
+        'base_lat': 30.0074,
+        'base_lng': 31.4312,
+        'max_radius_km': 25,
+        'experience': 'Mid',
+        'status': 'Active'
+    }
+    for col, default_val in defaults.items():
+        if col not in df.columns:
+            df[col] = default_val
+            
     return df
 
 def save_tech_df(df):
@@ -185,7 +209,6 @@ def save_tech_df(df):
     df.to_sql("technicians", conn, if_exists="replace", index=False)
     conn.close()
 
-# Helper function to get effective starting location coordinates
 def get_effective_coords(row):
     if row.get('start_type') == "Mirage Service Center":
         return MIRAGE_CENTER_COORDS
@@ -252,22 +275,23 @@ def run_smart_dispatch(orders_df, tech_df, allow_overflow=True):
     orders['Distance_Type'] = orders['City'].apply(classify_distance)
     orders['Assigned_Tech'] = "Unassigned"
     
+    # Filter active technicians safely
     active_techs = tech_df[tech_df['status'] == 'Active'].copy()
     
     tracker = {}
     for _, row in active_techs.iterrows():
         eff_lat, eff_lng = get_effective_coords(row)
         tracker[row['name']] = {
-            'brand': row['brand'],
-            'vehicle': row['vehicle'],
-            'capacity': row['capacity'],
-            'phone': row['phone'],
-            'skills': str(row['skills']).split(','),
-            'start_type': row['start_type'],
+            'brand': row.get('brand', 'General'),
+            'vehicle': row.get('vehicle', 'Motorcycle'),
+            'capacity': row.get('capacity', 8),
+            'phone': row.get('phone', '0000000000'),
+            'skills': str(row.get('skills', '')).split(','),
+            'start_type': row.get('start_type', 'Mirage Service Center'),
             'base_lat': eff_lat,
             'base_lng': eff_lng,
-            'max_radius_km': row['max_radius_km'],
-            'experience': row['experience'],
+            'max_radius_km': row.get('max_radius_km', 25),
+            'experience': row.get('experience', 'Mid'),
             'assigned': 0
         }
     
