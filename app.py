@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling
+# Modern UI Styling
 st.markdown("""
     <style>
     .main .block-container {
@@ -65,20 +65,25 @@ TRANSLATIONS = {
         "kpi_orders": "Active Orders Mapped",
         "kpi_techs": "Technicians in Field",
         "kpi_zones": "Active Zones",
-        "no_map_points": "No coordinates found. Upload data with 'lat' and 'lon' columns in the Central Info Hub.",
+        "no_map_points": "No coordinates available yet. Upload data containing 'lat' and 'lon' columns in the Central Info Hub.",
         
         # AI Module
         "ai_title": "🤖 AI-Powered Smart Dispatch Engine",
         "ai_sub": "Instantly distribute incoming work orders to the optimal technician line.",
         "dispatch_matcher": "🎯 Dispatch Matcher",
+        "ai_settings": "⚙️ Customize AI Priority Weights",
+        "weight_zone": "Zone Match Importance",
+        "weight_skill": "Skill Match Importance",
+        "weight_cap": "Capacity Availability Bonus",
         "select_zone": "Select Delivery / Service Zone",
         "select_skill": "Required Specialty / Skill",
         "run_match": "⚡ Run AI Dispatch Match",
         "rec_tech": "Recommended Technician",
         "match_score": "AI Match Score",
         "tech_capacity": "📋 Technician Lines & Capacity",
-        "no_techs": "No technician records uploaded yet.",
-        "no_zones": "No service zones detected in technician records.",
+        "no_techs": "No technician records found. Upload technician data in the Central Info Hub.",
+        "no_zones_opt": "No zones found (Upload data first)",
+        "no_skills_opt": "No skills found (Upload data first)",
 
         # Logistics Module
         "logistics_title": "📦 Logistics & Inventory Center",
@@ -87,7 +92,6 @@ TRANSLATIONS = {
         "inv_master": "Inventory Master List",
         "save_stock": "💾 Save Stock Changes",
         "stock_saved": "Logistics inventory updated!",
-        "no_inv": "Inventory database is currently empty.",
 
         # Info Hub Module
         "hub_title": "ℹ️ Central Info Hub & Bulk Import Gateway",
@@ -106,8 +110,7 @@ TRANSLATIONS = {
         "grid_sub": "Interactive Work Order Grid (Excel Mode)",
         "grid_desc": "Edit ticket status, client info, or assign technicians directly in the cells below.",
         "save_orders": "💾 Save Work Order Changes",
-        "orders_saved": "Work orders updated successfully!",
-        "no_orders": "No work order records found. Upload a CSV/Excel file or add rows above."
+        "orders_saved": "Work orders updated successfully!"
     },
     "AR": {
         "app_title": "⚡ مركز التوزيع واللوجستيات بالذكاء الاصطناعي",
@@ -128,20 +131,25 @@ TRANSLATIONS = {
         "kpi_orders": "الطلبات النشطة على الخريطة",
         "kpi_techs": "الفنيون في الميدان",
         "kpi_zones": "المناطق النشطة",
-        "no_map_points": "لا توجد إحداثيات. يرجى رفع ملف يحتوي على أعمدة 'lat' و 'lon' من مركز المعلومات.",
+        "no_map_points": "لا توجد إحداثيات حالياً. يرجى رفع ملف يحتوي على أعمدة 'lat' و 'lon' من مركز المعلومات.",
         
         # AI Module
         "ai_title": "🤖 محرك التوزيع الذكي بالذكاء الاصطناعي",
         "ai_sub": "توزيع طلبات الخدمة فورياً على خط الفني الأنسب.",
         "dispatch_matcher": "🎯 مطابقة التوزيع",
+        "ai_settings": "⚙️ تخصيص معايير وأوزان الذكاء الاصطناعي",
+        "weight_zone": "أهمية مطابقة المنطقة الجغرافية",
+        "weight_skill": "أهمية مطابقة التخصص والمهارة",
+        "weight_cap": "مكافأة السعة الاستيعابية المتاحة",
         "select_zone": "اختر منطقة الخدمة / التوصيل",
         "select_skill": "التخصص أو المهارة المطلوبة",
         "run_match": "⚡ تشغيل مطابقة الذكاء الاصطناعي",
         "rec_tech": "الفني الموصى به",
         "match_score": "درجة المطابقة",
         "tech_capacity": "📋 خطوط الفنيين والسعة اليومية",
-        "no_techs": "لا يوجد فنيون مسجلون في قاعدة البيانات حتى الآن.",
-        "no_zones": "لم يتم رصد مناطق خدمة في بيانات الفنيين.",
+        "no_techs": "لا يوجد فنيون مسجلون. قم برفع بيانات الفنيين من مركز المعلومات.",
+        "no_zones_opt": "لا توجد مناطق متاحة (برجاء رفع البيانات أولاً)",
+        "no_skills_opt": "لا توجد مهارات متاحة (برجاء رفع البيانات أولاً)",
 
         # Logistics Module
         "logistics_title": "📦 مركز اللوجستيات والمخزون",
@@ -150,7 +158,6 @@ TRANSLATIONS = {
         "inv_master": "قائمة المخزون الرئيسية",
         "save_stock": "💾 حفظ تغييرات المخزون",
         "stock_saved": "تم تحديث بيانات المخزون بنجاح!",
-        "no_inv": "قاعدة بيانات المخزون فارغة حالياً.",
 
         # Info Hub Module
         "hub_title": "ℹ️ مركز المعلومات وبوابة الرفع",
@@ -169,32 +176,29 @@ TRANSLATIONS = {
         "grid_sub": "جدول الطلبات التفاعلي (نمط إكسل)",
         "grid_desc": "تعديل حالة الطلب، بيانات العملاء، أو تعيين الفنيين مباشرة داخل الخلايا.",
         "save_orders": "💾 حفظ تغييرات الطلبات",
-        "orders_saved": "تم تحديث الطلبات بنجاح!",
-        "no_orders": "لا توجد أوراق عمل. قم برفع ملف أو إضافة صفوف جديدة أعلاه."
+        "orders_saved": "تم تحديث الطلبات بنجاح!"
     }
 }
 
 
 # ==============================================================================
-# 3. SESSION STATE INITIALIZATION (100% CLEAN EMPTY SLATE)
+# 3. SESSION STATE INITIALIZATION (CLEAN EMPTY SLATE)
 # ==============================================================================
 def init_session_state():
     if "lang" not in st.session_state:
         st.session_state.lang = "EN"
 
-    # Empty Inventory Schema
+    # Clean Schemas (No sample rows)
     if "inventory_df" not in st.session_state:
         st.session_state.inventory_df = pd.DataFrame(columns=[
             "SKU", "Part Name", "Category", "Bin Location", "Stock Qty", "Min Threshold"
         ])
 
-    # Empty Technicians Schema
     if "technicians_df" not in st.session_state:
         st.session_state.technicians_df = pd.DataFrame(columns=[
             "Tech ID", "Name", "Assigned Zone", "Primary Skill", "Active Jobs", "Max Capacity", "lat", "lon"
         ])
 
-    # Empty Work Orders Schema
     if "work_orders_df" not in st.session_state:
         st.session_state.work_orders_df = pd.DataFrame(columns=[
             "Ticket ID", "Client Name", "Appliance Issue", "Zone", "Assigned Tech", "Priority", "Status", "lat", "lon"
@@ -209,34 +213,40 @@ def t(key):
 
 
 # ==============================================================================
-# 4. AI MATCHING ENGINE
+# 4. CUSTOMIZABLE AI MATCHING ENGINE
 # ==============================================================================
-def smart_ai_dispatch(zone, skill):
+def smart_ai_dispatch(zone, skill, w_zone=40, w_skill=40, w_cap=20):
     techs = st.session_state.technicians_df.copy()
     if techs.empty:
         return "N/A", "N/A", 0
     
     scores = []
     for _, tech in techs.iterrows():
-        score = 50.0
-        if "Assigned Zone" in tech and str(tech["Assigned Zone"]) == str(zone):
-            score += 30.0
-        if "Primary Skill" in tech and str(skill).lower() in str(tech["Primary Skill"]).lower():
-            score += 20.0
+        score = 0.0
         
-        # Capacity availability logic
+        # Zone match score
+        if "Assigned Zone" in tech and pd.notnull(tech["Assigned Zone"]):
+            if str(tech["Assigned Zone"]).strip().lower() == str(zone).strip().lower():
+                score += float(w_zone)
+        
+        # Skill match score
+        if "Primary Skill" in tech and pd.notnull(tech["Primary Skill"]):
+            if str(skill).strip().lower() in str(tech["Primary Skill"]).strip().lower():
+                score += float(w_skill)
+        
+        # Capacity availability score
         try:
             active = float(tech.get("Active Jobs", 0))
             max_cap = float(tech.get("Max Capacity", 5))
             if active < max_cap:
-                score += 15.0
-            else:
-                score -= 20.0
+                # Proportional score based on available slots
+                avail_ratio = (max_cap - active) / max_cap if max_cap > 0 else 0
+                score += float(w_cap) * avail_ratio
         except:
             pass
 
-        tech_name = tech.get("Name", "Unknown Tech")
-        tech_id = tech.get("Tech ID", "N/A")
+        tech_name = tech.get("Name", "Unknown Tech") if pd.notnull(tech.get("Name")) else "Tech"
+        tech_id = tech.get("Tech ID", "N/A") if pd.notnull(tech.get("Tech ID")) else "N/A"
         scores.append((tech_name, tech_id, score))
 
     scores.sort(key=lambda x: x[2], reverse=True)
@@ -249,7 +259,7 @@ def smart_ai_dispatch(zone, skill):
 st.sidebar.title(t("sidebar_title"))
 st.sidebar.caption(t("sidebar_caption"))
 
-# Language Selection Box
+# Language Switcher
 selected_language = st.sidebar.selectbox(
     t("select_lang"),
     options=["English", "العربية"],
@@ -286,36 +296,43 @@ if nav_choice == t("mod_map"):
     st.title(t("map_title"))
     st.markdown(t("map_sub"))
 
-    # Extract unique zones dynamically
+    # Safely compute KPI counts
+    orders_count = len(st.session_state.work_orders_df)
+    techs_count = len(st.session_state.technicians_df)
+    
     active_zones_count = 0
     if not st.session_state.technicians_df.empty and "Assigned Zone" in st.session_state.technicians_df.columns:
-        active_zones_count = st.session_state.technicians_df["Assigned Zone"].nunique()
+        active_zones_count = st.session_state.technicians_df["Assigned Zone"].dropna().nunique()
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown(f'<div class="kpi-card"><div class="kpi-title">{t("kpi_orders")}</div><div class="kpi-value">{len(st.session_state.work_orders_df)}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card"><div class="kpi-title">{t("kpi_orders")}</div><div class="kpi-value">{orders_count}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="kpi-card" style="border-left-color: #10b981;"><div class="kpi-title">{t("kpi_techs")}</div><div class="kpi-value">{len(st.session_state.technicians_df)}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card" style="border-left-color: #10b981;"><div class="kpi-title">{t("kpi_techs")}</div><div class="kpi-value">{techs_count}</div></div>', unsafe_allow_html=True)
     with c3:
         st.markdown(f'<div class="kpi-card" style="border-left-color: #8b5cf6;"><div class="kpi-title">{t("kpi_zones")}</div><div class="kpi-value">{active_zones_count}</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Compile map coordinates dynamically from user uploaded data
+    # Safely build map points
     map_points = []
     
     if not st.session_state.technicians_df.empty:
         for _, t_row in st.session_state.technicians_df.iterrows():
-            if "lat" in t_row and "lon" in t_row and pd.notnull(t_row["lat"]) and pd.notnull(t_row["lon"]):
+            if "lat" in t_row and "lon" in t_row:
                 try:
-                    map_points.append({"lat": float(t_row["lat"]), "lon": float(t_row["lon"])})
+                    lat, lon = float(t_row["lat"]), float(t_row["lon"])
+                    if not (np.isnan(lat) or np.isnan(lon)):
+                        map_points.append({"lat": lat, "lon": lon})
                 except: pass
 
     if not st.session_state.work_orders_df.empty:
         for _, w_row in st.session_state.work_orders_df.iterrows():
-            if "lat" in w_row and "lon" in w_row and pd.notnull(w_row["lat"]) and pd.notnull(w_row["lon"]):
+            if "lat" in w_row and "lon" in w_row:
                 try:
-                    map_points.append({"lat": float(w_row["lat"]), "lon": float(w_row["lon"])})
+                    lat, lon = float(w_row["lat"]), float(w_row["lon"])
+                    if not (np.isnan(lat) or np.isnan(lon)):
+                        map_points.append({"lat": lat, "lon": lon})
                 except: pass
 
     if map_points:
@@ -325,43 +342,56 @@ if nav_choice == t("mod_map"):
 
 
 # ==============================================================================
-# MODULE 2: AI-POWERED DISTRIBUTOR
+# MODULE 2: AI-POWERED DISTRIBUTOR (WITH CUSTOMIZABLE WEIGHTS)
 # ==============================================================================
 elif nav_choice == t("mod_ai"):
     st.title(t("ai_title"))
     st.markdown(t("ai_sub"))
+
+    # Customizable AI Parameters Expander
+    with st.expander(t("ai_settings"), expanded=True):
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            w_zone = st.slider(t("weight_zone"), 0, 100, 40)
+        with sc2:
+            w_skill = st.slider(t("weight_skill"), 0, 100, 40)
+        with sc3:
+            w_cap = st.slider(t("weight_cap"), 0, 100, 20)
 
     col1, col2 = st.columns([1, 1])
 
     with col1:
         st.subheader(t("dispatch_matcher"))
         
-        # Populate available zones dynamically
+        # Populate available zones safely
         zones_list = []
         if not st.session_state.technicians_df.empty and "Assigned Zone" in st.session_state.technicians_df.columns:
-            zones_list = [z for z in st.session_state.technicians_df["Assigned Zone"].dropna().unique() if str(z).strip()]
+            zones_list = [str(z).strip() for z in st.session_state.technicians_df["Assigned Zone"].dropna().unique() if str(z).strip()]
         
         if not zones_list:
-            zones_list = ["Default Zone Line 1"]
+            zones_list = [t("no_zones_opt")]
 
-        # Populate available skills dynamically
+        # Populate available skills safely
         skills_list = []
         if not st.session_state.technicians_df.empty and "Primary Skill" in st.session_state.technicians_df.columns:
-            skills_list = [s for s in st.session_state.technicians_df["Primary Skill"].dropna().unique() if str(s).strip()]
+            skills_list = [str(s).strip() for s in st.session_state.technicians_df["Primary Skill"].dropna().unique() if str(s).strip()]
         
         if not skills_list:
-            skills_list = ["General Maintenance"]
+            skills_list = [t("no_skills_opt")]
 
         sel_zone = st.selectbox(t("select_zone"), zones_list)
         sel_skill = st.selectbox(t("select_skill"), skills_list)
         
         if st.button(t("run_match")):
-            best_tech, tech_id, score = smart_ai_dispatch(sel_zone, sel_skill)
-            if best_tech != "N/A":
-                st.success(f"**{t('rec_tech')}:** {best_tech} ({tech_id})")
-                st.info(f"**{t('match_score')}:** {score:.0f}/100")
-            else:
+            if st.session_state.technicians_df.empty:
                 st.warning(t("no_techs"))
+            else:
+                best_tech, tech_id, score = smart_ai_dispatch(sel_zone, sel_skill, w_zone, w_skill, w_cap)
+                if best_tech != "N/A":
+                    st.success(f"**{t('rec_tech')}:** {best_tech} ({tech_id})")
+                    st.info(f"**{t('match_score')}:** {score:.0f} points")
+                else:
+                    st.warning(t("no_techs"))
 
     with col2:
         st.subheader(t("tech_capacity"))
@@ -378,13 +408,12 @@ elif nav_choice == t("mod_logistics"):
     st.title(t("logistics_title"))
     st.markdown(t("logistics_sub"))
 
-    # Check for Low Stock Items if columns exist
+    # Safely check low stock
     if not st.session_state.inventory_df.empty and "Stock Qty" in st.session_state.inventory_df.columns and "Min Threshold" in st.session_state.inventory_df.columns:
         try:
-            low_stock = st.session_state.inventory_df[
-                pd.to_numeric(st.session_state.inventory_df["Stock Qty"], errors='coerce') <= 
-                pd.to_numeric(st.session_state.inventory_df["Min Threshold"], errors='coerce')
-            ]
+            stock_q = pd.to_numeric(st.session_state.inventory_df["Stock Qty"], errors='coerce')
+            min_t = pd.to_numeric(st.session_state.inventory_df["Min Threshold"], errors='coerce')
+            low_stock = st.session_state.inventory_df[stock_q <= min_t]
             if not low_stock.empty:
                 st.warning(t("low_stock_alert").format(count=len(low_stock)))
         except: pass
