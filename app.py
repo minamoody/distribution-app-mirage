@@ -1,960 +1,893 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import sqlite3
-import urllib.parse
-import io
-import datetime
-import folium
-from streamlit_folium import st_folium
-
-# ===================================================================
-# 1. PAGE CONFIGURATION & CUSTOM STYLING
-# ===================================================================
-st.set_page_config(
-    page_title="Mirage AI Fleet & Wing Dispatch Command",
-    layout="wide",
-    page_icon="⚡",
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS for polished UI cards, metric styling, and printable manifests
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 26px;
-        font-weight: 700;
-        color: #1E293B;
-        margin-bottom: 5px;
-    }
-    .sub-header {
-        font-size: 14px;
-        color: #64748B;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 15px;
-        text-align: center;
-    }
-    .status-badge-ok {
-        background-color: #DCFCE7;
-        color: #166534;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    .status-badge-warn {
-        background-color: #FEF9C3;
-        color: #854D0E;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    .status-badge-danger {
-        background-color: #FEE2E2;
-        color: #991B1B;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 12px;
-    }
-    @media print {
-        .stApp > header, footer, .stSidebar, .stTabs {
-            display: none !important;
+<!DOCTYPE html>
+<html lang="en" dir="ltr" id="appRoot" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Enterprise Distribution & Supply Chain Hub</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
         }
-        .printable-sheet {
-            page-break-after: always;
-        }
+      }
     }
-</style>
-""", unsafe_allow_html=True)
+  </script>
 
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    /* Custom Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300 min-h-screen flex flex-col">
 
-# ===================================================================
-# 2. COMPREHENSIVE DATABASE INITIALIZATION & MIGRATIONS
-# ===================================================================
-DB_FILE = "dispatch_system.db"
+  <!-- TOP NAVIGATION / HEADER -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 lg:px-8 py-3 transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Title -->
+      <div class="flex items-center space-x-3 rtl:space-x-reverse">
+        <div class="p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl text-white font-black text-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center w-11 h-11">
+          🌐
+        </div>
+        <div>
+          <div class="flex items-center space-x-2 rtl:space-x-reverse">
+            <h1 id="appTitle" class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Global Distribution Command</h1>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">v4.0 Ultra</span>
+          </div>
+          <p id="appSubtitle" class="text-xs text-gray-500 dark:text-gray-400">Real-time supply chain analytics, fleet telemetry, and inventory management</p>
+        </div>
+      </div>
 
-def get_db_connection():
-    """Establishes and returns a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    """Initializes all database tables required for multi-wing logistics management."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    
-    # 1. Company Wings Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS wings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # 2. Technicians / Drivers Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS technicians (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            phone TEXT,
-            brand TEXT,
-            skills TEXT,
-            vehicle TEXT,
-            capacity INTEGER,
-            home_zone TEXT,
-            shift_type TEXT DEFAULT 'Full Day',
-            parts_inventory TEXT DEFAULT 'Standard Kit',
-            status TEXT DEFAULT 'Active'
-        )
-    """)
-    
-    # 3. Spare Parts & Warehouse Inventory Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            item_code TEXT UNIQUE,
-            item_name TEXT,
-            category TEXT,
-            stock_quantity INTEGER,
-            min_threshold INTEGER,
-            unit_cost REAL
-        )
-    """)
-    
-    # 4. Fleet Vehicle Maintenance Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vehicle_health (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            driver_name TEXT UNIQUE,
-            vehicle_plate TEXT,
-            vehicle_type TEXT,
-            odometer_km INTEGER,
-            last_service_date TEXT,
-            health_status TEXT DEFAULT 'Good Condition',
-            notes TEXT
-        )
-    """)
-    
-    # 5. Operations Audit Log Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            event_type TEXT,
-            description TEXT,
-            operator TEXT DEFAULT 'System Admin'
-        )
-    """)
-
-    # Seed Default Wings
-    c.execute("SELECT COUNT(*) FROM wings")
-    if c.fetchone()[0] == 0:
-        default_wings = [("Wing A",), ("Wing B",), ("Wing C",)]
-        c.executemany("INSERT INTO wings (name) VALUES (?)", default_wings)
-    
-    # Seed Default Technicians
-    c.execute("SELECT COUNT(*) FROM technicians")
-    if c.fetchone()[0] == 0:
-        default_techs = [
-            ("أحمد عماد", "201000000001", "Wing A", "Installation,Maintenance", "Motorcycle", 8, "Shorouk", "Full Day", "Standard Kit", "Active"),
-            ("شعبان", "201000000002", "Wing A", "Installation", "Car", 10, "Madinaty", "Full Day", "Heavy Kit, Replacement Parts", "Active"),
-            ("كيمكو", "201000000003", "Wing B", "Installation,Maintenance", "Car", 12, "Maadi", "Full Day", "Heavy Kit, Replacement Parts", "Active"),
-            ("محمد سامي", "201000000004", "Wing B", "Customer Service", "Motorcycle", 7, "Maadi", "Half Day", "Standard Kit", "Active"),
-            ("تكنو", "201000000005", "Wing C", "Installation", "Car", 10, "Tagamoa", "Full Day", "Heavy Kit", "Active"),
-            ("حسن", "201000000006", "Wing C", "Customer Service", "Motorcycle", 8, "Tagamoa", "Full Day", "Standard Kit", "Active"),
-        ]
-        c.executemany("""
-            INSERT INTO technicians (name, phone, brand, skills, vehicle, capacity, home_zone, shift_type, parts_inventory, status)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, default_techs)
-
-    # Seed Default Inventory
-    c.execute("SELECT COUNT(*) FROM inventory")
-    if c.fetchone()[0] == 0:
-        default_parts = [
-            ("PRT-001", "Standard Mounting Kit", "Hardware", 150, 30, 45.0),
-            ("PRT-002", "Heavy Duty Motor Assembly", "Spare Parts", 40, 10, 850.0),
-            ("PRT-003", "Universal Wiring Harness", "Electrical", 90, 20, 120.0),
-            ("PRT-004", "Replacement Valves & Seals", "Spare Parts", 60, 15, 65.0),
-        ]
-        c.executemany("""
-            INSERT INTO inventory (item_code, item_name, category, stock_quantity, min_threshold, unit_cost)
-            VALUES (?,?,?,?,?,?)
-        """, default_parts)
-
-    # Seed Default Vehicle Health
-    c.execute("SELECT COUNT(*) FROM vehicle_health")
-    if c.fetchone()[0] == 0:
-        default_fleet = [
-            ("أحمد عماد", "م ط أ 123", "Motorcycle", 18500, "2026-05-10", "Good Condition", "Routine maintenance ok"),
-            ("شعبان", "ق ب ج 456", "Car", 64000, "2026-06-01", "Good Condition", "Brake pads inspected"),
-            ("كيمكو", "س ر د 789", "Car", 89000, "2026-04-15", "Needs Oil Change", "Oil service past due by 500km"),
-            ("محمد سامي", "ن ف هـ 321", "Motorcycle", 12000, "2026-05-20", "Good Condition", "New front tire installed"),
-            ("تكنو", "و ل م 654", "Car", 105000, "2026-05-02", "Under Repair", "Gearbox maintenance in progress"),
-            ("حسن", "ي ص ط 987", "Motorcycle", 22100, "2026-05-18", "Good Condition", "Tuned up"),
-        ]
-        c.executemany("""
-            INSERT INTO vehicle_health (driver_name, vehicle_plate, vehicle_type, odometer_km, last_service_date, health_status, notes)
-            VALUES (?,?,?,?,?,?,?)
-        """, default_fleet)
-
-    conn.commit()
-    conn.close()
-
-# Run database setup
-init_db()
-
-
-# ===================================================================
-# 3. DATABASE HELPER FUNCTIONS & OPERATIONAL SERVICES
-# ===================================================================
-def log_audit_event(event_type, description, operator="System Admin"):
-    """Logs system events into the SQLite audit table."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("INSERT INTO audit_logs (event_type, description, operator) VALUES (?,?,?)", (event_type, description, operator))
-    conn.commit()
-    conn.close()
-
-def get_wings():
-    """Retrieves list of active company wings."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT name FROM wings ORDER BY name ASC")
-    rows = c.fetchall()
-    conn.close()
-    return [r['name'] for r in rows]
-
-def add_wing(wing_name):
-    """Adds a new wing to the database."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO wings (name) VALUES (?)", (wing_name,))
-        conn.commit()
-        log_audit_event("ADD_WING", f"Added new wing: {wing_name}")
-    except sqlite3.IntegrityError:
-        pass
-    conn.close()
-
-def rename_wing(old_name, new_name):
-    """Renames an existing wing and updates all associated drivers."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("UPDATE wings SET name = ? WHERE name = ?", (new_name, old_name))
-    c.execute("UPDATE technicians SET brand = ? WHERE brand = ?", (new_name, old_name))
-    conn.commit()
-    conn.close()
-    log_audit_event("RENAME_WING", f"Renamed wing '{old_name}' to '{new_name}'")
-
-def delete_wing(wing_name):
-    """Deletes a wing from the database."""
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM wings WHERE name = ?", (wing_name,))
-    conn.commit()
-    conn.close()
-    log_audit_event("DELETE_WING", f"Deleted wing: {wing_name}")
-
-def get_tech_df():
-    """Fetches technician table as a Pandas DataFrame."""
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT * FROM technicians", conn)
-    conn.close()
-    return df
-
-def save_tech_df(df):
-    """Saves updated technician DataFrame back to SQLite."""
-    conn = get_db_connection()
-    df.to_sql("technicians", conn, if_exists="replace", index=False)
-    conn.close()
-    log_audit_event("UPDATE_TECH_DB", "Updated technicians master configuration table.")
-
-def get_inventory_df():
-    """Fetches inventory table."""
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT * FROM inventory", conn)
-    conn.close()
-    return df
-
-def save_inventory_df(df):
-    """Saves inventory updates."""
-    conn = get_db_connection()
-    df.to_sql("inventory", conn, if_exists="replace", index=False)
-    conn.close()
-    log_audit_event("UPDATE_INVENTORY", "Updated warehouse inventory stock levels.")
-
-def get_fleet_health_df():
-    """Fetches vehicle health data."""
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT * FROM vehicle_health", conn)
-    conn.close()
-    return df
-
-def save_fleet_health_df(df):
-    """Saves vehicle health data."""
-    conn = get_db_connection()
-    df.to_sql("vehicle_health", conn, if_exists="replace", index=False)
-    conn.close()
-
-def get_audit_logs_df():
-    """Fetches system audit logs."""
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200", conn)
-    conn.close()
-    return df
-
-
-# ===================================================================
-# 4. EGYPT REGIONAL GEOGRAPHY & ROUTING ENGINE
-# ===================================================================
-FAR_AREAS = [
-    "MADINATY", "MOSTAKBAL", "TAGAMOA", "OCTOBER", "ISMAILIA", 
-    "KATAMEYA", "ZAMALEK", "QALYUB", "OBOUR", "BADR", "SHERATON", "ALEXANDRIA"
-]
-
-CITY_COORDS = {
-    "MADINATY CITY ( مدينتى )": (30.0917, 31.6295),
-    "TAGAMOA 5 (التجمع الخامس)": (30.0074, 31.4312),
-    "TAGAMOA 1 (التجمع الأول)": (30.0511, 31.4486),
-    "SHOROUK (الشروق)": (30.1458, 31.6067),
-    "AL MAADI ( المعادى )": (29.9602, 31.2569),
-    "HELIOPOLIS (مصر الجديدة)": (30.0889, 31.3262),
-    "NASR CITY (مدينة نصر)": (30.0561, 31.3301),
-    "MOKKATAM ( المقطم )": (30.0167, 31.3000),
-    "6TH OF OCTOBER CITY ( 6 أكتوبر )": (29.9722, 30.9439),
-    "BADR CITY (مدينه بدر)": (30.1408, 31.7454),
-    "EL OBOUR CITY (العبور)": (30.2415, 31.4820),
-    "ZAMALEK (الزمالك)": (30.0609, 31.2197),
-    "SHEIKH ZAYED (الشيخ زايد)": (30.0463, 30.9997),
-}
-
-def classify_distance(city_name):
-    """Categorizes trip into Near vs Far zone based on Cairo geography."""
-    city_str = str(city_name).upper().strip()
-    return "Far" if any(area in city_str for area in FAR_AREAS) else "Near"
-
-def get_coordinates(city_name):
-    """Matches city string against spatial coordinates dictionary."""
-    city_str = str(city_name).strip()
-    return next((v for k, v in CITY_COORDS.items() if k in city_str or city_str in k), (30.0444, 31.2357))
-
-def build_gmaps_route_link(orders_df):
-    """Generates a multi-stop Google Maps navigation link for driver handsets."""
-    locations = []
-    for _, r in orders_df.iterrows():
-        c_str = str(r['City']).strip()
-        coords = get_coordinates(c_str)
-        locations.append(f"{coords[0]},{coords[1]}")
-    
-    if not locations:
-        return "#"
-    origin = locations[0]
-    destination = locations[-1]
-    waypoints = "|".join(locations[1:-1]) if len(locations) > 2 else ""
-    
-    url = f"https://www.google.com/maps/dir/?api=1&origin={origin}&destination={destination}"
-    if waypoints:
-        url += f"&waypoints={waypoints}"
-    return url
-
-def generate_driver_whatsapp(phone, tech_name, orders):
-    """Builds pre-formatted WhatsApp route notification for technicians."""
-    gmaps_url = build_gmaps_route_link(orders)
-    msg = f"📱 *Daily Route & Work Orders for {tech_name}*\n"
-    msg += f"Total Jobs Assigned: {len(orders)}\n"
-    msg += f"🗺️ *Google Maps Multi-Stop Route:* {gmaps_url}\n\n"
-    
-    for i, (_, row) in enumerate(orders.iterrows(), 1):
-        prio = "🚨 VIP" if str(row.get('Priority', '')).lower() in ['high', 'vip', 'emergency'] else "Standard"
-        slot = row.get('Time_Slot', 'Morning (9 AM - 1 PM)')
-        wing = row.get('Brand', 'General')
-        msg += f"*{i}. WO:* {row.get('Work_Order', 'N/A')} [{wing}] [{prio}]\n"
-        msg += f"⏰ *Time Slot:* {slot}\n"
-        msg += f"📍 *Area:* {row.get('City', 'N/A')}\n"
-        msg += f"🛠️ *Service:* {row.get('Service_Type', 'Standard Service')}\n"
-        msg += f"------------------\n"
-    
-    encoded_msg = urllib.parse.quote(msg)
-    clean_phone = str(phone).replace("+", "").replace(" ", "")
-    return f"https://wa.me/{clean_phone}?text={encoded_msg}"
-
-def generate_customer_whatsapp(phone, customer_name, wo_number, tech_name, slot, wing_name):
-    """Builds WhatsApp customer alert link with arrival window."""
-    msg = f"Dear {customer_name},\n"
-    msg += f"Your Service Request *#{wo_number}* with *{wing_name}* has been scheduled for today!\n"
-    msg += f"👨‍🔧 *Assigned Specialist:* {tech_name}\n"
-    msg += f"⏰ *Arrival Window:* {slot}\n\n"
-    msg += "Our specialist will contact you 30 minutes prior to arrival. Thank you for choosing us!"
-    encoded_msg = urllib.parse.quote(msg)
-    clean_phone = str(phone).replace("+", "").replace(" ", "")
-    return f"https://wa.me/{clean_phone}?text={encoded_msg}"
-
-
-# ===================================================================
-# 5. ADVANCED DISPATCH ENGINE & RISK ANALYSIS
-# ===================================================================
-def calculate_job_risk(row):
-    """Scores operational delay risk for work orders."""
-    risk_score = 0
-    if str(row.get('Priority', '')).lower() in ['high', 'vip', 'emergency']:
-        risk_score += 40
-    if classify_distance(row.get('City', '')) == "Far":
-        risk_score += 35
-    if "Evening" in str(row.get('Time_Slot', '')):
-        risk_score += 15
-    return min(100, risk_score)
-
-def run_smart_dispatch(orders_df, tech_df, fleet_health_df, allow_overflow=True):
-    """
-    Main Multi-Wing Heuristic Optimization Dispatch Engine:
-    1. Filters out disabled drivers or vehicles under repair.
-    2. Matches order wings, parts requirements, and distance vehicle suitability (Cars vs Motorcycles).
-    3. Respects daily driver capacity limits and calculates stop order.
-    """
-    orders = orders_df.copy()
-    orders['Distance_Type'] = orders['City'].apply(classify_distance)
-    orders['Risk_Score'] = orders.apply(calculate_job_risk, axis=1)
-    orders['Priority_Rank'] = orders['Priority'].apply(lambda x: 0 if str(x).lower() in ['vip', 'high', 'emergency'] else 1) if 'Priority' in orders.columns else 1
-    
-    if 'Time_Slot' not in orders.columns:
-        orders['Time_Slot'] = np.where(np.random.rand(len(orders)) > 0.5, "Morning (9 AM - 1 PM)", "Evening (2 PM - 6 PM)")
-    
-    orders['Assigned_Tech'] = "Unassigned"
-    orders['Stop_Sequence'] = 0
-    
-    # Filter out drivers whose vehicles are 'Under Repair'
-    disabled_drivers = fleet_health_df[fleet_health_df['health_status'] == 'Under Repair']['driver_name'].tolist()
-    active_techs = tech_df[(tech_df.get('status', 'Active') == 'Active') & (~tech_df['name'].isin(disabled_drivers))]
-    
-    tracker = {}
-    for _, row in active_techs.iterrows():
-        cap = row['capacity'] if row.get('shift_type', 'Full Day') == 'Full Day' else int(row['capacity'] * 0.5)
-        tracker[row['name']] = {
-            'brand': str(row['brand']).strip(),
-            'vehicle': row['vehicle'],
-            'capacity': max(1, cap),
-            'phone': row['phone'],
-            'home_zone': str(row.get('home_zone', '')).lower(),
-            'parts': str(row.get('parts_inventory', '')).lower(),
-            'assigned': 0
-        }
-    
-    orders = orders.sort_values(by=['Priority_Rank', 'Time_Slot', 'Distance_Type'], ascending=[True, True, True])
-    
-    for idx, row in orders.iterrows():
-        order_brand = str(row.get('Brand', '')).strip() if pd.notna(row.get('Brand')) else None
-        req_part = str(row.get('Required_Part', '')).lower() if pd.notna(row.get('Required_Part')) else ""
-        city_str = str(row['City']).lower()
-        dist_type = row['Distance_Type']
+      <!-- Top Bar Global Actions -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 rtl:space-x-reverse">
         
-        target_vehicle = "Car" if (dist_type == "Far" or "heavy" in req_part or "replacement" in req_part) else "Motorcycle"
+        <!-- Dark / Light Theme Toggle -->
+        <button onclick="toggleTheme()" class="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-semibold transition flex items-center gap-1.5" title="Toggle UI Theme">
+          <span id="themeIcon">🌙</span>
+          <span id="themeLabel" class="hidden md:inline text-xs">Dark Mode</span>
+        </button>
+
+        <!-- Role Access Selector -->
+        <div class="relative">
+          <select id="roleSelect" onchange="switchRole(this.value)" class="bg-gray-100 dark:bg-gray-800 dark:text-gray-200 text-gray-700 text-xs sm:text-sm font-semibold py-2 px-3 rounded-lg border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="admin">⚙️ Admin View</option>
+            <option value="manager">📊 Logistics Manager</option>
+            <option value="operator">🚚 Dispatch Operator</option>
+          </select>
+        </div>
+
+        <!-- Language Switcher -->
+        <div class="relative">
+          <select id="langSelect" onchange="switchLanguage(this.value)" class="bg-gray-100 dark:bg-gray-800 dark:text-gray-200 text-gray-700 text-xs sm:text-sm font-semibold py-2 px-3 rounded-lg border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="en" selected>🌐 English</option>
+            <option value="ar">🌐 العربية</option>
+          </select>
+        </div>
+
+        <!-- Currency Switcher -->
+        <div class="relative">
+          <select id="currencySelect" onchange="switchCurrency(this.value)" class="bg-gray-100 dark:bg-gray-800 dark:text-gray-200 text-gray-700 text-xs sm:text-sm font-semibold py-2 px-3 rounded-lg border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="USD">USD ($)</option>
+            <option value="EGP">EGP (E£)</option>
+            <option value="EUR">EUR (€)</option>
+          </select>
+        </div>
+
+        <!-- Create New Order/Shipment Button (Admin / Manager Only) -->
+        <button id="btnNewShipment" onclick="openModal('shipmentModal')" class="admin-only manager-only bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold py-2 px-4 rounded-lg transition shadow-md shadow-blue-500/20 flex items-center gap-1">
+          <span>+</span> <span id="lblBtnNew">New Shipment</span>
+        </button>
+
+        <!-- Export Data Button (Admin / Manager Only) -->
+        <button id="btnExport" onclick="exportToCSV()" class="admin-only manager-only bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold py-2 px-4 rounded-lg transition shadow-md shadow-emerald-500/20 flex items-center gap-1">
+          <span>📥</span> <span id="lblBtnExport">Export CSV</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD CONTENT CONTAINER -->
+  <main class="max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 flex-grow">
+
+    <!-- SYSTEM ALERTS BANNER -->
+    <div id="systemAlertBanner" class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-l-4 border-amber-500 p-4 rounded-r-xl flex items-center justify-between dark:text-amber-200 text-amber-900">
+      <div class="flex items-center space-x-3 rtl:space-x-reverse">
+        <span class="text-amber-500 text-xl">⚠️</span>
+        <div>
+          <p class="font-bold text-sm" id="alertTitle">Regional Weather Advisory</p>
+          <p class="text-xs text-amber-700 dark:text-amber-300" id="alertBody">Port delays reported in Alexandria Terminal 2. Estimated lead time offset: +4 hours.</p>
+        </div>
+      </div>
+      <button onclick="document.getElementById('systemAlertBanner').remove()" class="text-amber-500 hover:text-amber-700 text-sm font-bold">✕</button>
+    </div>
+
+    <!-- ADVANCED FILTER & SEARCH CONTROL RIBBON -->
+    <section class="bg-white dark:bg-gray-900 p-4 sm:p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+      <div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         
-        # Priority Candidate Search: Exact Wing + Capacity + Vehicle Fit + Inventory Fit
-        candidates = [
-            name for name, info in tracker.items()
-            if (not order_brand or info['brand'].lower() == order_brand.lower())
-            and info['assigned'] < info['capacity']
-            and info['vehicle'] == target_vehicle
-            and (not req_part or req_part in info['parts'])
-        ]
-        
-        # Fallback Candidate Search 1: Wing match regardless of vehicle type
-        if not candidates:
-            candidates = [
-                name for name, info in tracker.items()
-                if (not order_brand or info['brand'].lower() == order_brand.lower())
-                and info['assigned'] < info['capacity']
-            ]
-            
-        # Fallback Candidate Search 2: Cross-wing overflow if permitted
-        if not candidates and allow_overflow:
-            candidates = [
-                name for name, info in tracker.items()
-                if info['assigned'] < info['capacity']
-            ]
-            
-        if candidates:
-            # Home Zone Geographic Preference
-            home_matches = [c for c in candidates if tracker[c]['home_zone'] and tracker[c]['home_zone'] in city_str]
-            selected_pool = home_matches if home_matches else candidates
-            
-            # Select driver with lowest load
-            best_tech = min(selected_pool, key=lambda t: tracker[t]['assigned'])
-            orders.at[idx, 'Assigned_Tech'] = best_tech
-            tracker[best_tech]['assigned'] += 1
+        <!-- Search Input -->
+        <div class="flex-1">
+          <label id="lblSearch" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Live Shipment Search</label>
+          <div class="relative">
+            <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search by tracking ID, origin, destination, or carrier..." class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-sm rounded-xl p-2.5 pl-9 rtl:pr-9 rtl:pl-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            <span class="absolute left-3 rtl:right-3 rtl:left-auto top-3 text-gray-400">🔍</span>
+          </div>
+        </div>
 
-    # Calculate stop sequencing
-    for tech in orders['Assigned_Tech'].unique():
-        if tech == "Unassigned": continue
-        t_mask = orders['Assigned_Tech'] == tech
-        orders.loc[t_mask, 'Stop_Sequence'] = range(1, t_mask.sum() + 1)
+        <!-- Filter Dropdown Group -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          
+          <!-- Category Filter -->
+          <div>
+            <label id="lblCategory" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Category</label>
+            <select id="categoryFilter" onchange="applyFilters()" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-xs sm:text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500">
+              <option value="all">All Categories</option>
+              <option value="Electronics">Electronics</option>
+              <option value="Pharmaceuticals">Pharmaceuticals</option>
+              <option value="Heavy Machinery">Heavy Machinery</option>
+              <option value="Consumer Goods">Consumer Goods</option>
+            </select>
+          </div>
 
-    log_audit_event("RUN_DISPATCH", f"Successfully ran AI dispatch engine for {len(orders)} orders.")
-    return orders, tracker
+          <!-- Status Filter -->
+          <div>
+            <label id="lblStatus" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Shipment Status</label>
+            <select id="statusFilter" onchange="applyFilters()" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-xs sm:text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500">
+              <option value="all">All Statuses</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Customs Hold">Customs Hold</option>
+              <option value="Pending Dispatch">Pending Dispatch</option>
+            </select>
+          </div>
 
+          <!-- Priority Filter -->
+          <div>
+            <label id="lblPriority" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Priority Level</label>
+            <select id="priorityFilter" onchange="applyFilters()" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-xs sm:text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500">
+              <option value="all">All Priorities</option>
+              <option value="Express">🔴 Express</option>
+              <option value="Standard">🟡 Standard</option>
+              <option value="Economy">🟢 Economy</option>
+            </select>
+          </div>
 
-# ===================================================================
-# 6. APPLICATION HEADER & MAIN NAVIGATION TABS
-# ===================================================================
-st.markdown("<div class='main-header'>⚡ Mirage AI Fleet & Wing Dispatch Command</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-header'>Enterprise Multi-Wing Logistics, Fleet Maintenance & Workforce Operations System</div>", unsafe_allow_html=True)
+          <!-- Timeframe Selector -->
+          <div>
+            <label id="lblTimeframe" class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Timeframe</label>
+            <select id="timeframeFilter" onchange="applyFilters()" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 text-xs sm:text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500">
+              <option value="7d">Last 7 Days</option>
+              <option value="30d" selected>Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+              <option value="1y">Full Year</option>
+            </select>
+          </div>
 
-nav_tab1, nav_tab2, nav_tab3, nav_tab4, nav_tab5, nav_tab6, nav_tab7, nav_tab8, nav_tab9, nav_tab10 = st.tabs([
-    "🚀 Dispatch Hub", 
-    "🗺️ Live Route Map", 
-    "📱 Driver & Client Portals", 
-    "🖨️ Printable Manifests",
-    "📦 Parts Inventory",
-    "🛠️ Fleet Health",
-    "📊 Analytics & Payroll", 
-    "🚨 SLA Risk Sentinel",
-    "⚙️ Master Wing Manager",
-    "📜 System Audit Trail"
-])
+        </div>
+      </div>
+    </section>
 
-# Load state dataframes
-tech_df = get_tech_df()
-active_wings = get_wings()
-inventory_df = get_inventory_df()
-fleet_health_df = get_fleet_health_df()
+    <!-- METRICS & KPI DISPLAY CARDS -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <p id="kpi1Title" class="text-xs font-bold uppercase text-gray-400 tracking-wider">Total Active Fleet</p>
+            <h3 id="kpi1Val" class="text-3xl font-black text-gray-900 dark:text-white mt-1">1,420</h3>
+          </div>
+          <span class="p-3 bg-blue-50 dark:bg-blue-900/40 text-blue-600 rounded-xl text-xl">🚚</span>
+        </div>
+        <div class="mt-3 flex items-center text-xs font-semibold text-emerald-600">
+          <span>↑ 94.2% Fleet Utilization</span>
+        </div>
+      </div>
 
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <p id="kpi2Title" class="text-xs font-bold uppercase text-gray-400 tracking-wider">On-Time Delivery Rate</p>
+            <h3 id="kpi2Val" class="text-3xl font-black text-gray-900 dark:text-white mt-1">98.4%</h3>
+          </div>
+          <span class="p-3 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 rounded-xl text-xl">⏱️</span>
+        </div>
+        <div class="mt-3 flex items-center text-xs font-semibold text-emerald-600">
+          <span>↑ +1.8% vs last quarter</span>
+        </div>
+      </div>
 
-# ===================================================================
-# TAB 1: DISPATCH HUB & FILE UPLOADER
-# ===================================================================
-with nav_tab1:
-    st.header("📂 Daily Order Ingestion & AI Routing")
-    
-    col_files, col_opts = st.columns([2, 1])
-    all_uploaded_orders = []
-    
-    with col_files:
-        st.subheader("📤 Dynamic Dedicated Upload Slots per Wing")
-        st.caption("Each registered wing has its dedicated upload box. Orders are auto-tagged upon file upload.")
-        
-        # Create an upload box for every registered company wing
-        for wing in active_wings:
-            with st.expander(f"🏢 Wing Upload Slot: **{wing}**", expanded=True):
-                wing_file = st.file_uploader(
-                    f"Select Excel/CSV orders file for {wing}", 
-                    type=["xlsx", "csv"], 
-                    key=f"uploader_{wing}"
-                )
-                if wing_file:
-                    df_w = pd.read_csv(wing_file) if wing_file.name.endswith('.csv') else pd.read_excel(wing_file)
-                    df_w['Brand'] = wing
-                    all_uploaded_orders.append(df_w)
-                    st.success(f"✓ Loaded {len(df_w)} orders assigned to {wing}")
-        
-        # Ad-hoc wing upload slot
-        with st.expander("➕ Upload Orders for Temporary / Unlisted Wing", expanded=False):
-            custom_wing_name = st.text_input("Enter Ad-hoc Wing Name", placeholder="e.g. Mirage Commercial Project")
-            custom_file = st.file_uploader("Upload ad-hoc order file", type=["xlsx", "csv"], key="uploader_custom")
-            if custom_file and custom_wing_name:
-                df_c = pd.read_csv(custom_file) if custom_file.name.endswith('.csv') else pd.read_excel(custom_file)
-                df_c['Brand'] = custom_wing_name.strip()
-                all_uploaded_orders.append(df_c)
-                st.success(f"✓ Loaded {len(df_c)} orders for custom wing '{custom_wing_name}'")
-                
-    with col_opts:
-        st.markdown("### ⚙️ Dispatch Parameters")
-        allow_overflow = st.checkbox("Allow Cross-Wing Overflow", value=True, help="Allow under-capacity drivers from Wing B to take overflow jobs from Wing A.")
-        fuel_cost_per_km = st.number_input("Fuel Expense Rate (EGP / KM)", value=4.5, step=0.5)
-        base_bonus_rate = st.number_input("Driver Bonus Rate per Job > 5 (EGP)", value=50, step=10)
-        co2_emission_factor = st.number_input("CO2 Rate (kg/km)", value=0.19, step=0.01)
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <p id="kpi3Title" class="text-xs font-bold uppercase text-gray-400 tracking-wider">Average Dispatch Cost</p>
+            <h3 id="kpi3Val" class="text-3xl font-black text-gray-900 dark:text-white mt-1">$450.00</h3>
+          </div>
+          <span class="p-3 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-xl text-xl">💰</span>
+        </div>
+        <div class="mt-3 flex items-center text-xs font-semibold text-emerald-600">
+          <span>↓ 3.1% Cost Optimization</span>
+        </div>
+      </div>
 
-    if all_uploaded_orders:
-        df_raw = pd.concat(all_uploaded_orders, ignore_index=True)
-        st.session_state['df_raw'] = df_raw
-        
-        st.markdown("---")
-        st.markdown("### 📊 Ingested Orders Summary Across Wings")
-        wing_summary = df_raw['Brand'].value_counts().reset_index()
-        wing_summary.columns = ['Wing Name', 'Loaded Orders Count']
-        st.dataframe(wing_summary, use_container_width=True)
-        
-        if st.button("⚡ Execute AI Sequence & Route Dispatch Engine", type="primary"):
-            processed_orders, tracker = run_smart_dispatch(df_raw, tech_df, fleet_health_df, allow_overflow)
-            st.session_state['processed_orders'] = processed_orders
-            st.session_state['tracker'] = tracker
-            
-            st.subheader("📋 Final Optimized Dispatch Plan")
-            display_cols = [c for c in ['Work_Order', 'Brand', 'City', 'Time_Slot', 'Priority', 'Assigned_Tech', 'Stop_Sequence', 'Risk_Score'] if c in processed_orders.columns]
-            st.dataframe(processed_orders[display_cols], use_container_width=True)
-            
-            # Master Excel Download Button
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                processed_orders.to_excel(writer, sheet_name='Master Dispatch Plan', index=False)
-            st.download_button(
-                label="📥 Download Consolidated Master Excel Report",
-                data=buffer.getvalue(),
-                file_name="Master_Daily_Dispatch_Plan.xlsx",
-                mime="application/vnd.ms-excel",
-                type="secondary"
-            )
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+        <div class="flex justify-between items-start">
+          <div>
+            <p id="kpi4Title" class="text-xs font-bold uppercase text-gray-400 tracking-wider">Warehouse Storage Load</p>
+            <h3 id="kpi4Val" class="text-3xl font-black text-gray-900 dark:text-white mt-1">82.5%</h3>
+          </div>
+          <span class="p-3 bg-amber-50 dark:bg-amber-900/40 text-amber-600 rounded-xl text-xl">🏭</span>
+        </div>
+        <div class="mt-3 flex items-center text-xs font-semibold text-amber-600">
+          <span>⚠️ High Load in Hub 3</span>
+        </div>
+      </div>
 
+    </section>
 
-# ===================================================================
-# TAB 2: LIVE INTERACTIVE ROUTE MAP
-# ===================================================================
-with nav_tab2:
-    st.header("MAP: GIS Cluster & Route Visualization")
-    st.caption("Interactive map depicting customer stops, driver clusters, and risk zones across Cairo.")
-    
-    if 'processed_orders' in st.session_state:
-        orders = st.session_state['processed_orders']
-        m = folium.Map(location=[30.0444, 31.2357], zoom_start=11)
-        
-        for idx, row in orders.iterrows():
-            coords = get_coordinates(row['City'])
-            tech = row['Assigned_Tech']
-            dist = row['Distance_Type']
-            seq = row.get('Stop_Sequence', 1)
-            risk = row.get('Risk_Score', 0)
-            
-            color = "red" if risk > 60 else ("orange" if dist == "Far" else "blue")
-            
-            folium.Marker(
-                location=coords,
-                popup=f"<b>Stop #{seq}</b><br>WO: {row.get('Work_Order', 'N/A')}<br>Wing: {row.get('Brand', 'N/A')}<br>Driver: {tech}<br>Area: {row['City']}<br>Risk Score: {risk}%",
-                tooltip=f"Stop {seq}: {tech} ({row['City']})",
-                icon=folium.Icon(color=color, icon="info-sign")
-            ).add_to(m)
-            
-        st_folium(m, width=1200, height=550)
-    else:
-        st.info("💡 Upload wing orders and execute dispatch in Tab 1 to activate spatial map views.")
+    <!-- ANALYTICS VISUALIZATION SECTION (CHARTS) -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Line Chart: Throughput -->
+      <div class="lg:col-span-2 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 id="chart1Title" class="text-base font-bold text-gray-900 dark:text-white">Shipment Delivery Performance</h2>
+            <p id="chart1Sub" class="text-xs text-gray-400">Monthly dispatch volume vs target efficiency SLA</p>
+          </div>
+          <span class="text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-lg">Real-Time Sync</span>
+        </div>
+        <div class="h-72 w-full">
+          <canvas id="throughputChart"></canvas>
+        </div>
+      </div>
 
+      <!-- Doughnut Chart: Regional Distribution -->
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 id="chart2Title" class="text-base font-bold text-gray-900 dark:text-white">Regional Hub Volumes</h2>
+            <p id="chart2Sub" class="text-xs text-gray-400">Distribution breakdown across major hubs</p>
+          </div>
+        </div>
+        <div class="h-72 w-full relative flex items-center justify-center">
+          <canvas id="regionalChart"></canvas>
+        </div>
+      </div>
 
-# ===================================================================
-# TAB 3: DRIVER & CUSTOMER WHATSAPP PORTALS
-# ===================================================================
-with nav_tab3:
-    st.header("📱 Automated WhatsApp Communications Hub")
-    
-    if 'processed_orders' in st.session_state:
-        orders = st.session_state['processed_orders']
-        techs = orders['Assigned_Tech'].unique()
-        
-        col_dr, col_cl = st.columns(2)
-        
-        with col_dr:
-            st.subheader("👨‍🔧 Technician Multi-Stop Routes")
-            st.caption("1-Click WhatsApp links containing optimized stop order & Google Maps links.")
-            for tech in techs:
-                if tech == "Unassigned": continue
-                t_orders = orders[orders['Assigned_Tech'] == tech].sort_values(by='Stop_Sequence')
-                tech_info = tech_df[tech_df['name'] == tech].iloc[0] if not tech_df[tech_df['name'] == tech].empty else None
-                phone = tech_info['phone'] if tech_info is not None else "201000000000"
-                wa_url = generate_driver_whatsapp(phone, tech, t_orders)
-                
-                with st.expander(f"📲 Send Route to {tech} ({len(t_orders)} Jobs assigned)"):
-                    st.markdown(f"[🚀 **Dispatch Multi-Stop Route to WhatsApp**]({wa_url})", unsafe_allow_html=True)
-                    st.dataframe(t_orders[['Stop_Sequence', 'Work_Order', 'Brand', 'City', 'Time_Slot']], use_container_width=True)
-                    
-        with col_cl:
-            st.subheader("📲 Customer Arrival Alerts")
-            st.caption("Send instant arrival notifications directly to clients.")
-            for idx, r in orders.iterrows():
-                if r['Assigned_Tech'] == "Unassigned": continue
-                cust_phone = str(r.get('Customer_Phone', '201000000000'))
-                cust_name = str(r.get('Customer_Name', 'Valued Client'))
-                wo = str(r.get('Work_Order', 'N/A'))
-                tech = r['Assigned_Tech']
-                slot = r.get('Time_Slot', 'Morning (9 AM - 1 PM)')
-                wing = r.get('Brand', 'Mirage Wing')
-                
-                cust_wa_url = generate_customer_whatsapp(cust_phone, cust_name, wo, tech, slot, wing)
-                st.markdown(f"**WO #{wo}** ({cust_name}) ➔ [{tech}] | [📩 Send Customer SMS Alert]({cust_wa_url})")
-    else:
-        st.info("💡 Run the dispatch engine to populate communication channels.")
+    </section>
 
+    <!-- DYNAMIC SHIPMENT DATA TABLE SECTION -->
+    <section class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+      
+      <!-- Table Header Bar -->
+      <div class="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-3 rtl:space-x-reverse">
+            <h2 id="tableHeading" class="text-lg font-bold text-gray-900 dark:text-white">Active Global Shipments</h2>
+            <span id="recordCounter" class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold px-2.5 py-1 rounded-full">5 Records</span>
+          </div>
+          <p id="tableSubheading" class="text-xs text-gray-400 mt-0.5">Filter, track, manage status, and delete active shipments</p>
+        </div>
 
-# ===================================================================
-# TAB 4: PRINTABLE MANIFESTS & WORK ORDERS
-# ===================================================================
-with nav_tab4:
-    st.header("🖨️ Daily Printable Driver Work Sheets")
-    st.caption("Generate paper-ready job manifests for field specialists.")
-    
-    if 'processed_orders' in st.session_state:
-        orders = st.session_state['processed_orders']
-        selected_tech = st.selectbox("Select Technician Manifest to Print", [t for t in orders['Assigned_Tech'].unique() if t != "Unassigned"])
-        
-        if selected_tech:
-            t_orders = orders[orders['Assigned_Tech'] == selected_tech].sort_values(by='Stop_Sequence')
-            tech_info = tech_df[tech_df['name'] == selected_tech].iloc[0] if not tech_df[tech_df['name'] == selected_tech].empty else None
-            
-            st.markdown(f"""
-            <div class='printable-sheet' style='border: 2px solid #333; padding: 25px; background: #fff; color: #000;'>
-                <h2>MIRAGE FIELD OPERATIONS - DAILY MANIFEST</h2>
-                <hr>
-                <p><b>Technician Name:</b> {selected_tech} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Primary Wing:</b> {tech_info['brand'] if tech_info is not None else 'N/A'}</p>
-                <p><b>Vehicle Type:</b> {tech_info['vehicle'] if tech_info is not None else 'N/A'} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Assigned Jobs:</b> {len(t_orders)}</p>
-                <p><b>Date:</b> {datetime.date.today().strftime('%Y-%m-%d')}</p>
-                <br>
+        <div class="flex items-center space-x-2 rtl:space-x-reverse">
+          <span id="userRoleBadge" class="text-xs px-3 py-1.5 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-bold">
+            Role: Admin
+          </span>
+        </div>
+      </div>
+
+      <!-- Table Wrapper -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left rtl:text-right text-gray-600 dark:text-gray-300">
+          <thead class="bg-gray-50 dark:bg-gray-800/60 text-xs uppercase tracking-wider text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800">
+            <tr>
+              <th scope="col" class="p-4" id="thTrackId">Tracking ID</th>
+              <th scope="col" class="p-4" id="thRoute">Origin → Destination</th>
+              <th scope="col" class="p-4" id="thCategory">Category</th>
+              <th scope="col" class="p-4" id="thPriority">Priority</th>
+              <th scope="col" class="p-4" id="thStatus">Status</th>
+              <th scope="col" class="p-4" id="thCost">Declared Cost</th>
+              <th scope="col" class="p-4 text-right rtl:text-left admin-only manager-only" id="thActions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="shipmentTableBody" class="divide-y divide-gray-200 dark:divide-gray-800">
+            <!-- Table Rows Rendered via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Table Footer / Pagination -->
+      <div class="p-4 bg-gray-50 dark:bg-gray-800/40 border-t border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-4 text-xs font-medium text-gray-500">
+        <span id="paginationInfo">Showing 1 to 5 of 5 entries</span>
+        <div class="flex items-center space-x-2 rtl:space-x-reverse">
+          <button disabled class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-400 cursor-not-allowed">Previous</button>
+          <button disabled class="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-400 cursor-not-allowed">Next</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- BOTTOM ROW: WAREHOUSE STOCK & LIVE SYSTEM AUDIT LOG -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <!-- Warehouse Capacity Monitor -->
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 id="whTitle" class="text-base font-bold text-gray-900 dark:text-white">Warehouse Inventory Levels</h2>
+          <span class="text-xs text-blue-600 font-bold">4 Major Hubs</span>
+        </div>
+        <div class="space-y-3">
+          
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span>Cairo Regional Logistics Center (Hub 1)</span>
+              <span class="text-blue-600 font-bold">78%</span>
             </div>
-            """, unsafe_allow_html=True)
-            
-            for idx, r in t_orders.iterrows():
-                st.markdown(f"""
-                <div style='border-bottom: 1px dashed #666; padding: 10px 0;'>
-                    <h4>Stop #{r.get('Stop_Sequence', 1)} | Work Order: #{r.get('Work_Order', 'N/A')} [{r.get('Brand', 'N/A')}]</h4>
-                    <p><b>City/Area:</b> {r.get('City', 'N/A')} | <b>Time Slot:</b> {r.get('Time_Slot', 'N/A')} | <b>Priority:</b> {r.get('Priority', 'Standard')}</p>
-                    <p><b>Customer Signature:</b> ___________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Completion Status:</b> [  ] Done  [  ] Rescheduled</p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.caption("Press Ctrl+P (or Cmd+P) in your browser to print this sheet.")
-    else:
-        st.info("💡 Run dispatch engine to generate driver work sheets.")
+            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2.5">
+              <div class="bg-blue-600 h-2.5 rounded-full" style="width: 78%"></div>
+            </div>
+          </div>
 
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span>Alexandria Maritime Port Storage (Hub 2)</span>
+              <span class="text-amber-600 font-bold">92% (High Capacity)</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2.5">
+              <div class="bg-amber-500 h-2.5 rounded-full" style="width: 92%"></div>
+            </div>
+          </div>
 
-# ===================================================================
-# TAB 5: SPARE PARTS & WAREHOUSE INVENTORY
-# ===================================================================
-with nav_tab5:
-    st.header("📦 Warehouse & Technician Parts Inventory")
-    st.caption("Manage spare parts, kits, and warehouse stock levels.")
-    
-    st.subheader("📊 Current Warehouse Stock Levels")
-    edited_inv = st.data_editor(
-        inventory_df,
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "stock_quantity": st.column_config.NumberColumn("Quantity in Stock", min_value=0),
-            "unit_cost": st.column_config.NumberColumn("Unit Cost (EGP)", format="%.2f EGP")
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span>10th of Ramadan Distribution Center (Hub 3)</span>
+              <span class="text-emerald-600 font-bold">45%</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2.5">
+              <div class="bg-emerald-500 h-2.5 rounded-full" style="width: 45%"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span>Upper Egypt Logistics Station (Hub 4)</span>
+              <span class="text-blue-600 font-bold">64%</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2.5">
+              <div class="bg-blue-500 h-2.5 rounded-full" style="width: 64%"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Live Real-Time System Audit Log -->
+      <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="logTitle" class="text-base font-bold text-gray-900 dark:text-white">Live System Audit Stream</h2>
+          <span class="flex items-center gap-1.5 text-xs text-emerald-500 font-semibold">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Broadcast
+          </span>
+        </div>
+
+        <div id="auditLogContainer" class="space-y-2.5 max-h-48 overflow-y-auto pr-1 text-xs">
+          <!-- Log Entries dynamically generated -->
+        </div>
+
+        <button onclick="clearLogs()" class="mt-3 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-left rtl:text-right">
+          Clear Activity Stream
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- MODAL: ADD NEW SHIPMENT (ADMIN / MANAGER) -->
+  <div id="shipmentModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+      <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-3">
+        <h3 id="modalTitle" class="text-lg font-bold text-gray-900 dark:text-white">Dispatch New Shipment</h3>
+        <button onclick="closeModal('shipmentModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 font-bold text-lg">✕</button>
+      </div>
+
+      <form id="newShipmentForm" onsubmit="handleCreateShipment(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Tracking ID</label>
+          <input type="text" id="inputTrackId" required placeholder="TRK-99001" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Origin City</label>
+            <input type="text" id="inputOrigin" required placeholder="Cairo" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Destination City</label>
+            <input type="text" id="inputDestination" required placeholder="Alexandria" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Category</label>
+            <select id="inputCategory" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 dark:text-white">
+              <option value="Electronics">Electronics</option>
+              <option value="Pharmaceuticals">Pharmaceuticals</option>
+              <option value="Heavy Machinery">Heavy Machinery</option>
+              <option value="Consumer Goods">Consumer Goods</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Priority</label>
+            <select id="inputPriority" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 dark:text-white">
+              <option value="Express">Express</option>
+              <option value="Standard">Standard</option>
+              <option value="Economy">Economy</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Initial Status</label>
+            <select id="inputStatus" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 dark:text-white">
+              <option value="Pending Dispatch">Pending Dispatch</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Customs Hold">Customs Hold</option>
+              <option value="Delivered">Delivered</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-400 mb-1">Declared Value ($ USD)</label>
+            <input type="number" id="inputCost" required placeholder="12500" class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-sm rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-white" />
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 rtl:space-x-reverse pt-3">
+          <button type="button" onclick="closeModal('shipmentModal')" class="px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20">Submit Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-4 px-6 text-center text-xs text-gray-400 transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>© 2026 Enterprise Distribution System. All Rights Reserved.</p>
+      <div class="flex items-center space-x-4 rtl:space-x-reverse">
+        <a href="#" class="hover:underline">System Status</a>
+        <a href="#" class="hover:underline">Privacy Policy</a>
+        <a href="#" class="hover:underline">API Documentation</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- SCRIPT LOGIC ENGINE -->
+  <script>
+    // --- GLOBAL DATA STORE ---
+    let currentRole = 'admin';
+    let currentLang = 'en';
+    let currentCurrency = 'USD';
+    let currencyRates = { USD: 1, EGP: 48.5, EUR: 0.92 };
+    let currencySymbols = { USD: '$', EGP: 'E£', EUR: '€' };
+
+    let shipments = [
+      { id: 'TRK-10482', origin: 'Cairo Hub', destination: 'Alexandria Port', category: 'Electronics', priority: 'Express', status: 'In Transit', costUSD: 14500 },
+      { id: 'TRK-20911', origin: 'Tanta Depot', destination: 'Giza Hub', category: 'Pharmaceuticals', priority: 'Standard', status: 'Delivered', costUSD: 8200 },
+      { id: 'TRK-30194', origin: '10th of Ramadan', destination: 'Suez Customs', category: 'Heavy Machinery', priority: 'Express', status: 'Customs Hold', costUSD: 45000 },
+      { id: 'TRK-40812', origin: 'Luxor Station', destination: 'Aswan Terminal', category: 'Consumer Goods', priority: 'Economy', status: 'In Transit', costUSD: 3400 },
+      { id: 'TRK-50119', origin: 'Mansoura Depot', destination: 'Cairo Hub', category: 'Electronics', priority: 'Standard', status: 'Pending Dispatch', costUSD: 19800 }
+    ];
+
+    let auditLogs = [
+      { time: '11:02 AM', text: 'Shipment TRK-30194 flagged for Customs Review at Suez.' },
+      { time: '10:45 AM', text: 'User (Admin) updated USD/EGP exchange rate matrix.' },
+      { time: '09:30 AM', text: 'Driver assigned to TRK-10482 (Vehicle Fleet #402).' },
+      { time: '08:15 AM', text: 'Warehouse Hub 2 reached 92% storage threshold alert.' }
+    ];
+
+    // --- TRANSLATION DICTIONARY ---
+    const i18n = {
+      en: {
+        appTitle: "Global Distribution Command",
+        appSubtitle: "Real-time supply chain analytics, fleet telemetry, and inventory management",
+        btnNew: "New Shipment",
+        btnExport: "Export CSV",
+        searchLabel: "Live Shipment Search",
+        catLabel: "Category",
+        statusLabel: "Shipment Status",
+        prioLabel: "Priority Level",
+        timeLabel: "Timeframe",
+        kpi1: "Total Active Fleet",
+        kpi2: "On-Time Delivery Rate",
+        kpi3: "Average Dispatch Cost",
+        kpi4: "Warehouse Storage Load",
+        chart1Title: "Shipment Delivery Performance",
+        chart1Sub: "Monthly dispatch volume vs target efficiency SLA",
+        chart2Title: "Regional Hub Volumes",
+        chart2Sub: "Distribution breakdown across major hubs",
+        tableHeading: "Active Global Shipments",
+        tableSub: "Filter, track, manage status, and delete active shipments",
+        thTrackId: "Tracking ID",
+        thRoute: "Origin → Destination",
+        thCategory: "Category",
+        thPriority: "Priority",
+        thStatus: "Status",
+        thCost: "Declared Cost",
+        thActions: "Actions",
+        whTitle: "Warehouse Inventory Levels",
+        logTitle: "Live System Audit Stream"
+      },
+      ar: {
+        appTitle: "مركز قيادة التوزيع العالمي",
+        appSubtitle: "تحليلات سلسلة التوريد في الوقت الفعلي ومراقبة الأسطول والمخزون",
+        btnNew: "شحنة جديدة",
+        btnExport: "تصدير CSV",
+        searchLabel: "البحث المباشر للشحنات",
+        catLabel: "التصنيف",
+        statusLabel: "حالة الشحنة",
+        prioLabel: "مستوى الأولوية",
+        timeLabel: "الإطار الزمني",
+        kpi1: "إجمالي الأسطول النشط",
+        kpi2: "معدل التسليم في الوقت المحدد",
+        kpi3: "متوسط تكلفة الإرسال",
+        kpi4: "حمل التخزين بالمستودعات",
+        chart1Title: "أداء تسليم الشحنات",
+        chart1Sub: "حجم الإرسال الشهري مقابل كفاءة اتفاقية مستوى الخدمة",
+        chart2Title: "أحجام المراكز الإقليمية",
+        chart2Sub: "توزيع الشحنات عبر المراكز الرئيسية",
+        tableHeading: "الشحنات العالمية النشطة",
+        tableSub: "تصفية وتتبع وإدارة الحالة وحذف الشحنات النشطة",
+        thTrackId: "رمز التتبع",
+        thRoute: "المصدر ← الوجهة",
+        thCategory: "التصنيف",
+        thPriority: "الأولوية",
+        thStatus: "الحالة",
+        thCost: "القيمة المصرح بها",
+        thActions: "الإجراءات",
+        whTitle: "مستويات المخزون بالمستودعات",
+        logTitle: "سجل تدقيق النظام المباشر"
+      }
+    };
+
+    // --- CHART INITIALIZATIONS ---
+    let throughputChartObj, regionalChartObj;
+
+    function initCharts() {
+      // Line Chart
+      const ctx1 = document.getElementById('throughputChart').getContext('2d');
+      throughputChartObj = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+          datasets: [
+            {
+              label: 'Dispatched Volume',
+              data: [1200, 1400, 1350, 1600, 1550, 1800, 1950],
+              borderColor: '#2563eb',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              fill: true,
+              tension: 0.4
+            },
+            {
+              label: 'Delivered On-Time',
+              data: [1150, 1360, 1310, 1580, 1520, 1770, 1910],
+              borderColor: '#10b981',
+              backgroundColor: 'transparent',
+              borderDash: [5, 5],
+              tension: 0.4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: { y: { beginAtZero: false } }
         }
-    )
-    
-    if st.button("💾 Save Inventory Changes", type="primary"):
-        save_inventory_df(edited_inv)
-        st.success("Inventory records updated successfully!")
-        st.rerun()
+      });
 
-    st.markdown("---")
-    st.subheader("⚠️ Low Stock Sentinel Alerts")
-    low_stock = edited_inv[edited_inv['stock_quantity'] <= edited_inv['min_threshold']]
-    if not low_stock.empty:
-        for idx, r in low_stock.iterrows():
-            st.warning(f"🚨 **Low Stock Alert:** Item `{r['item_code']}` ({r['item_name']}) has only **{r['stock_quantity']} units** remaining (Threshold: {r['min_threshold']}).")
-    else:
-        st.success("✓ All warehouse items are sufficiently stocked above minimum thresholds.")
-
-
-# ===================================================================
-# TAB 6: FLEET HEALTH & MAINTENANCE TRACKER
-# ===================================================================
-with nav_tab6:
-    st.header("🛠️ Vehicle Maintenance & Fleet Health Engine")
-    st.caption("Monitor motorcycle and car health, service history, and repair statuses.")
-    
-    edited_fleet = st.data_editor(
-        fleet_health_df,
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "health_status": st.column_config.SelectboxColumn(
-                "Vehicle Status",
-                options=["Good Condition", "Needs Oil Change", "Under Repair", "Inspection Due"],
-                required=True
-            ),
-            "odometer_km": st.column_config.NumberColumn("Odometer Reading (KM)")
+      // Doughnut Chart
+      const ctx2 = document.getElementById('regionalChart').getContext('2d');
+      regionalChartObj = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['Greater Cairo', 'Alexandria Port', 'Delta Hubs', 'Upper Egypt'],
+          datasets: [{
+            data: [42, 28, 18, 12],
+            backgroundColor: ['#2563eb', '#f59e0b', '#10b981', '#8b5cf6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } }
         }
-    )
-    
-    if st.button("💾 Save Fleet Health Updates", type="primary"):
-        save_fleet_health_df(edited_fleet)
-        st.success("Vehicle health database saved successfully!")
-        st.rerun()
-        
-    st.markdown("---")
-    st.subheader("🚜 Vehicle Operational Status Summary")
-    repair_vehicles = edited_fleet[edited_fleet['health_status'] == 'Under Repair']
-    if not repair_vehicles.empty:
-        st.error(f"⛔ **Dispatch Lockout Warning:** {len(repair_vehicles)} drivers are currently linked to vehicles marked 'Under Repair' and will be excluded from dispatch runs.")
-        st.dataframe(repair_vehicles[['driver_name', 'vehicle_plate', 'vehicle_type', 'notes']], use_container_width=True)
+      });
+    }
 
+    // --- THEME ENGINE ---
+    function toggleTheme() {
+      const html = document.getElementById('appRoot');
+      const icon = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        icon.innerText = '🌙';
+        label.innerText = 'Dark Mode';
+      } else {
+        html.classList.add('dark');
+        icon.innerText = '☀️';
+        label.innerText = 'Light Mode';
+      }
+    }
 
-# ===================================================================
-# TAB 7: FINANCIAL ANALYTICS, CO2 & PAYROLL
-# ===================================================================
-with nav_tab7:
-    st.header("📊 Fleet Performance, Financials & Payroll")
-    
-    if 'processed_orders' in st.session_state:
-        orders = st.session_state['processed_orders']
-        tracker = st.session_state['tracker']
-        
-        total_orders = len(orders)
-        assigned_count = len(orders[orders['Assigned_Tech'] != 'Unassigned'])
-        far_count = len(orders[orders['Distance_Type'] == 'Far'])
-        
-        est_distance = (far_count * 35) + ((total_orders - far_count) * 12)
-        total_fuel_cost = est_distance * fuel_cost_per_km
-        total_co2_emissions = est_distance * co2_emission_factor
-        
-        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
-        m_col1.metric("Total Ingested Jobs", total_orders)
-        m_col2.metric("Successful Allocation", f"{(assigned_count/total_orders)*100:.1f}%")
-        m_col3.metric("Est. Total Distance", f"{est_distance:,} KM")
-        m_col4.metric("Est. Fuel Cost", f"{total_fuel_cost:,.0f} EGP")
-        m_col5.metric("Est. CO2 Carbon Footprint", f"{total_co2_emissions:,.1f} kg")
-        
-        st.markdown("---")
-        st.subheader("👨‍🔧 Driver Payroll & Performance Summary")
-        payroll_rows = []
-        for k, v in tracker.items():
-            bonus = max(0, (v['assigned'] - 5) * base_bonus_rate)
-            fuel = (v['assigned'] * 15) * fuel_cost_per_km
-            payroll_rows.append({
-                "Technician Name": k,
-                "Assigned Wing": v['brand'],
-                "Vehicle": v['vehicle'],
-                "Jobs Completed": v['assigned'],
-                "Capacity Limit": v['capacity'],
-                "Fuel Reimbursement (EGP)": f"{fuel:,.0f}",
-                "Productivity Bonus (EGP)": f"{bonus:,.0f}",
-                "Total Daily Payout (EGP)": f"{(fuel + bonus):,.0f}"
-            })
-        st.dataframe(pd.DataFrame(payroll_rows), use_container_width=True)
-    else:
-        st.info("💡 Run the dispatch engine in Tab 1 to generate operational financial metrics.")
+    // --- INTERNATIONALIZATION (LANGUAGE) ENGINE ---
+    function switchLanguage(lang) {
+      currentLang = lang;
+      const html = document.getElementById('appRoot');
+      html.lang = lang;
+      html.dir = lang === 'ar' ? 'rtl' : 'ltr';
 
+      const t = i18n[lang];
+      document.getElementById('appTitle').innerText = t.appTitle;
+      document.getElementById('appSubtitle').innerText = t.appSubtitle;
+      document.getElementById('lblBtnNew').innerText = t.btnNew;
+      document.getElementById('lblBtnExport').innerText = t.btnExport;
+      document.getElementById('lblSearch').innerText = t.searchLabel;
+      document.getElementById('lblCategory').innerText = t.catLabel;
+      document.getElementById('lblStatus').innerText = t.statusLabel;
+      document.getElementById('lblPriority').innerText = t.prioLabel;
+      document.getElementById('lblTimeframe').innerText = t.timeLabel;
+      document.getElementById('kpi1Title').innerText = t.kpi1;
+      document.getElementById('kpi2Title').innerText = t.kpi2;
+      document.getElementById('kpi3Title').innerText = t.kpi3;
+      document.getElementById('kpi4Title').innerText = t.kpi4;
+      document.getElementById('chart1Title').innerText = t.chart1Title;
+      document.getElementById('chart1Sub').innerText = t.chart1Sub;
+      document.getElementById('chart2Title').innerText = t.chart2Title;
+      document.getElementById('chart2Sub').innerText = t.chart2Sub;
+      document.getElementById('tableHeading').innerText = t.tableHeading;
+      document.getElementById('tableSubheading').innerText = t.tableSub;
+      document.getElementById('thTrackId').innerText = t.thTrackId;
+      document.getElementById('thRoute').innerText = t.thRoute;
+      document.getElementById('thCategory').innerText = t.thCategory;
+      document.getElementById('thPriority').innerText = t.thPriority;
+      document.getElementById('thStatus').innerText = t.thStatus;
+      document.getElementById('thCost').innerText = t.thCost;
+      document.getElementById('thActions').innerText = t.thActions;
+      document.getElementById('whTitle').innerText = t.whTitle;
+      document.getElementById('logTitle').innerText = t.logTitle;
 
-# ===================================================================
-# TAB 8: SLA RISK SENTINEL
-# ===================================================================
-with nav_tab8:
-    st.header("🚨 SLA Delay Sentinel & Emergency Matrix")
-    st.caption("Identify work orders at risk of breaching customer delivery SLAs.")
-    
-    if 'processed_orders' in st.session_state:
-        orders = st.session_state['processed_orders']
-        high_risk_jobs = orders[orders['Risk_Score'] >= 50].sort_values(by='Risk_Score', ascending=False)
-        
-        st.subheader(f"⚠️ High-Risk Work Orders ({len(high_risk_jobs)} Jobs Flagged)")
-        if not high_risk_jobs.empty:
-            display_cols = [c for c in ['Work_Order', 'Brand', 'City', 'Priority', 'Risk_Score', 'Assigned_Tech'] if c in high_risk_jobs.columns]
-            st.dataframe(high_risk_jobs[display_cols], use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("🚨 Emergency Driver Override")
-            col_swap1, col_swap2, col_swap3 = st.columns(3)
-            with col_swap1:
-                target_wo = st.selectbox("Select Work Order to Re-assign", high_risk_jobs['Work_Order'].tolist())
-            with col_swap2:
-                available_techs = [t for t in tech_df['name'].tolist() if t != 'Unassigned']
-                new_assigned_tech = st.selectbox("Assign to Specialist", available_techs)
-            with col_swap3:
-                st.write("")
-                st.write("")
-                if st.button("Re-assign Job Now"):
-                    st.session_state['processed_orders'].loc[
-                        st.session_state['processed_orders']['Work_Order'] == target_wo, 'Assigned_Tech'
-                    ] = new_assigned_tech
-                    log_audit_event("EMERGENCY_REASSIGN", f"Reassigned WO #{target_wo} to {new_assigned_tech}")
-                    st.success(f"Work Order #{target_wo} successfully reassigned to {new_assigned_tech}!")
-                    st.rerun()
-        else:
-            st.success("✓ No high-risk delay warnings detected in current dispatch schedule.")
-    else:
-        st.info("💡 Run dispatch to calculate SLA risk matrix.")
+      renderTable();
+    }
 
+    // --- ROLE-BASED ACCESS CONTROL (RBAC) ---
+    function switchRole(role) {
+      currentRole = role;
+      document.getElementById('userRoleBadge').innerText = `Role: ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+      
+      const adminElems = document.querySelectorAll('.admin-only');
+      const managerElems = document.querySelectorAll('.manager-only');
 
-# ===================================================================
-# TAB 9: MASTER WING MANAGER & DRIVER CONFIGURATION
-# ===================================================================
-with nav_tab9:
-    st.header("⚙️ Master Wing & Technician Setup")
-    
-    st.subheader("🏢 Dedicated Wing Manager Control Panel")
-    w_col1, w_col2, w_col3 = st.columns(3)
-    
-    with w_col1:
-        st.markdown("#### ✏️ Rename Existing Wing")
-        target_wing = st.selectbox("Select Target Wing", active_wings if active_wings else ["None"])
-        new_wing_name = st.text_input("New Name String", key="rename_wing_input")
-        if st.button("Update Wing Name", type="primary"):
-            if target_wing and new_wing_name:
-                rename_wing(target_wing, new_wing_name.strip())
-                st.success(f"Renamed '{target_wing}' to '{new_wing_name.strip()}' system-wide!")
-                st.rerun()
-                
-    with w_col2:
-        st.markdown("#### ➕ Add New Wing")
-        wing_to_add = st.text_input("New Wing Name", key="add_wing_input")
-        if st.button("Add Wing"):
-            if wing_to_add:
-                add_wing(wing_to_add.strip())
-                st.success(f"Added wing '{wing_to_add.strip()}'!")
-                st.rerun()
-                
-    with w_col3:
-        st.markdown("#### 🗑️ Remove Wing")
-        wing_to_del = st.selectbox("Select Wing to Remove", active_wings if active_wings else ["None"], key="del_wing_select")
-        if st.button("Delete Wing"):
-            if wing_to_del:
-                delete_wing(wing_to_del)
-                st.warning(f"Deleted wing '{wing_to_del}'")
-                st.rerun()
+      adminElems.forEach(el => el.style.display = (role === 'admin') ? '' : 'none');
+      managerElems.forEach(el => el.style.display = (role === 'admin' || role === 'manager') ? '' : 'none');
 
-    st.markdown("---")
-    st.subheader("✏️ Master Technician & Driver Registry")
-    
-    edited_df = st.data_editor(
-        tech_df, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        column_config={
-            "brand": st.column_config.SelectboxColumn(
-                "Wing Name", 
-                options=active_wings, 
-                required=True,
-                help="Select the company wing this specialist belongs to."
-            ),
-            "vehicle": st.column_config.SelectboxColumn(
-                "Vehicle Type",
-                options=["Motorcycle", "Car"],
-                required=True
-            ),
-            "shift_type": st.column_config.SelectboxColumn(
-                "Shift Duration",
-                options=["Full Day", "Half Day"],
-                required=True
-            ),
-            "status": st.column_config.SelectboxColumn(
-                "Status",
-                options=["Active", "Inactive", "On Leave"],
-                required=True
-            )
-        }
-    )
-    
-    if st.button("💾 Save Driver Table Changes"):
-        save_tech_df(edited_df)
-        st.success("Technician table updated successfully!")
-        st.rerun()
+      renderTable();
+    }
 
+    // --- CURRENCY CONVERTOR ENGINE ---
+    function switchCurrency(curr) {
+      currentCurrency = curr;
+      const rate = currencyRates[curr];
+      const symbol = currencySymbols[curr];
+      
+      // Update KPI Cost
+      const baseCost = 450.00;
+      document.getElementById('kpi3Val').innerText = `${symbol}${(baseCost * rate).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
-# ===================================================================
-# TAB 10: SYSTEM AUDIT TRAIL & LOGS
-# ===================================================================
-with nav_tab10:
-    st.header("📜 System Operations Audit Trail")
-    st.caption("Immutable log of dispatch runs, manual driver reassignments, and database modifications.")
-    
-    audit_df = get_audit_logs_df()
-    st.dataframe(audit_df, use_container_width=True)
+      renderTable();
+    }
+
+    // --- RENDER TABLE WITH SEARCH & FILTERS ---
+    function renderTable(data = shipments) {
+      const tbody = document.getElementById('shipmentTableBody');
+      tbody.innerHTML = '';
+
+      const rate = currencyRates[currentCurrency];
+      const symbol = currencySymbols[currentCurrency];
+
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition border-b border-gray-100 dark:border-gray-800/50';
+
+        // Badge Status Styling
+        let statusBadge = '';
+        if (item.status === 'In Transit') statusBadge = '<span class="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold px-2.5 py-1 rounded-full">In Transit</span>';
+        else if (item.status === 'Delivered') statusBadge = '<span class="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-2.5 py-1 rounded-full">Delivered</span>';
+        else if (item.status === 'Customs Hold') statusBadge = '<span class="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold px-2.5 py-1 rounded-full">Customs Hold</span>';
+        else statusBadge = '<span class="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold px-2.5 py-1 rounded-full">Pending Dispatch</span>';
+
+        // Badge Priority Styling
+        let priorityBadge = '';
+        if (item.priority === 'Express') priorityBadge = '<span class="text-xs font-bold text-red-500">🔴 Express</span>';
+        else if (item.priority === 'Standard') priorityBadge = '<span class="text-xs font-bold text-amber-500">🟡 Standard</span>';
+        else priorityBadge = '<span class="text-xs font-bold text-emerald-500">🟢 Economy</span>';
+
+        const convertedCost = (item.costUSD * rate).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        row.innerHTML = `
+          <td class="p-4 font-bold text-gray-900 dark:text-white">${item.id}</td>
+          <td class="p-4">${item.origin} → ${item.destination}</td>
+          <td class="p-4">${item.category}</td>
+          <td class="p-4">${priorityBadge}</td>
+          <td class="p-4">${statusBadge}</td>
+          <td class="p-4 font-semibold text-gray-800 dark:text-gray-200">${symbol}${convertedCost}</td>
+          <td class="p-4 text-right rtl:text-left admin-only manager-only">
+            <button onclick="deleteShipment('${item.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold hover:underline">Delete</button>
+          </td>
+        `;
+
+        tbody.appendChild(row);
+      });
+
+      document.getElementById('recordCounter').innerText = `${data.length} Records`;
+      document.getElementById('paginationInfo').innerText = `Showing 1 to ${data.length} of ${data.length} entries`;
+
+      // Enforce RBAC visibility on rendered DOM elements
+      switchRole(currentRole);
+    }
+
+    // --- FILTER ENGINE ---
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const cat = document.getElementById('categoryFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      const prio = document.getElementById('priorityFilter').value;
+
+      const filtered = shipments.filter(item => {
+        const matchesSearch = item.id.toLowerCase().includes(search) ||
+                              item.origin.toLowerCase().includes(search) ||
+                              item.destination.toLowerCase().includes(search);
+        const matchesCat = (cat === 'all') || item.category === cat;
+        const matchesStatus = (status === 'all') || item.status === status;
+        const matchesPrio = (prio === 'all') || item.priority === prio;
+
+        return matchesSearch && matchesCat && matchesStatus && matchesPrio;
+      });
+
+      renderTable(filtered);
+    }
+
+    // --- CREATE NEW SHIPMENT FORM HANDLER ---
+    function handleCreateShipment(e) {
+      e.preventDefault();
+      
+      const newShipment = {
+        id: document.getElementById('inputTrackId').value,
+        origin: document.getElementById('inputOrigin').value,
+        destination: document.getElementById('inputDestination').value,
+        category: document.getElementById('inputCategory').value,
+        priority: document.getElementById('inputPriority').value,
+        status: document.getElementById('inputStatus').value,
+        costUSD: parseFloat(document.getElementById('inputCost').value) || 0
+      };
+
+      shipments.unshift(newShipment);
+      addAuditLog(`New shipment ${newShipment.id} created and set to ${newShipment.status}.`);
+      
+      closeModal('shipmentModal');
+      document.getElementById('newShipmentForm').reset();
+      applyFilters();
+    }
+
+    // --- DELETE SHIPMENT HANDLER ---
+    function deleteShipment(id) {
+      if (confirm(`Are you sure you want to delete shipment ${id}?`)) {
+        shipments = shipments.filter(s => s.id !== id);
+        addAuditLog(`Shipment ${id} was deleted from system.`);
+        applyFilters();
+      }
+    }
+
+    // --- SYSTEM AUDIT STREAM HANDLER ---
+    function renderAuditLogs() {
+      const container = document.getElementById('auditLogContainer');
+      container.innerHTML = '';
+      
+      auditLogs.forEach(log => {
+        const item = document.createElement('div');
+        item.className = 'p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex items-start space-x-2 rtl:space-x-reverse border border-gray-100 dark:border-gray-800';
+        item.innerHTML = `
+          <span class="font-bold text-blue-600 dark:text-blue-400 min-w-[55px]">${log.time}</span>
+          <span class="text-gray-600 dark:text-gray-300">${log.text}</span>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function addAuditLog(msg) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      auditLogs.unshift({ time: timeStr, text: msg });
+      renderAuditLogs();
+    }
+
+    function clearLogs() {
+      auditLogs = [];
+      renderAuditLogs();
+    }
+
+    // --- EXPORT TO CSV ENGINE ---
+    function exportToCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Tracking ID,Origin,Destination,Category,Priority,Status,Cost (USD)\n";
+
+      shipments.forEach(s => {
+        csvContent += `${s.id},${s.origin},${s.destination},${s.category},${s.priority},${s.status},${s.costUSD}\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `shipment_report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      addAuditLog('System exported active shipment data to CSV.');
+    }
+
+    // --- MODAL CONTROLS ---
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // --- APPLICATION BOOTSTRAP ---
+    document.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      renderAuditLogs();
+      switchLanguage('en');
+      switchRole('admin');
+      switchCurrency('USD');
+    });
+  </script>
+</body>
+</html>
