@@ -216,9 +216,9 @@ elif nav_choice == "📦 Logistics Center":
 # ==============================================================================
 elif nav_choice == "ℹ️ Central Info Hub":
     st.title("ℹ️ Central Info Hub & Bulk Import Gateway")
-    st.markdown("Upload bulk files or inspect current system work orders.")
+    st.markdown("Upload bulk files or manage and edit active work order records in an Excel-like grid.")
 
-    tab1, tab2 = st.tabs(["📤 Bulk File Uploads", "📝 Active Work Tickets Info"])
+    tab1, tab2 = st.tabs(["📤 Bulk File Uploads", "📝 Active Work Tickets (Excel Editor)"])
 
     with tab1:
         st.subheader("Upload CSV / Excel Data Files")
@@ -242,5 +242,15 @@ elif nav_choice == "ℹ️ Central Info Hub":
                 st.error(f"Error reading file: {e}")
 
     with tab2:
-        st.subheader("Current Work Order Records")
-        st.dataframe(st.session_state.work_orders_df, use_container_width=True, hide_index=True)
+        st.subheader("Interactive Work Order Grid")
+        st.markdown("Edit ticket status, client info, or assign technicians directly in the cells below.")
+        
+        edited_orders = st.data_editor(
+            st.session_state.work_orders_df,
+            use_container_width=True,
+            num_rows="dynamic"
+        )
+        
+        if st.button("💾 Save Work Order Changes"):
+            st.session_state.work_orders_df = edited_orders
+            st.success("Work orders updated successfully!")
