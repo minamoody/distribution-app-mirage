@@ -1,6 +1,5 @@
 import os
-from datetime import datetime, timedelta
-import numpy as np
+from datetime import datetime
 import pandas as pd
 import streamlit as st
 
@@ -8,17 +7,17 @@ import streamlit as st
 # 1. PAGE CONFIGURATION & CUSTOM STYLING
 # ==========================================
 st.set_page_config(
-    page_title="Mirage Distribution Center",
+    page_title="Mirage Management System",
     page_icon="📦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS with proper string formatting to prevent syntax errors
+# Custom CSS safely wrapped in triple-quoted strings
 st.markdown(
     """
 <style>
-    /* Sleek Custom Scrollbar */
+    /* Custom Scrollbar */
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -34,7 +33,7 @@ st.markdown(
         background: #41444c;
     }
 
-    /* Metric Card Styling */
+    /* Metric Cards */
     div[data-testid="stMetricValue"] {
         font-size: 1.8rem;
         font-weight: 700;
@@ -53,382 +52,420 @@ st.markdown(
 
 
 # ==========================================
-# 2. MOCK DATA GENERATION (PERSISTENT STATE)
+# 2. SESSION STATE INITIALIZATION (CLEAN DATA)
 # ==========================================
-@st.cache_data
-def load_initial_data():
-    np.random.seed(42)
-
-    # Inventory Data
-    products = [
-        "Premium Coffee Beans 1kg",
-        "Zero-Sugar Syrup Vanilla 750ml",
-        "Spanish Latte Mix 500g",
-        "Almond Milk Barista Edition 1L",
-        "Paper Cups 12oz (Box 500)",
-        "Organic Oat Milk 1L",
-        "Espresso Cleaning Tablets",
-    ]
-
-    inventory_df = pd.DataFrame(
-        {
-            "SKU": [f"MRG-SKU-{100+i}" for i in range(len(products))],
-            "Product Name": products,
-            "Category": [
-                "Coffee",
-                "Syrups",
-                "Mixes",
-                "Dairy/Alt",
-                "Packaging",
-                "Dairy/Alt",
-                "Supplies",
-            ],
-            "Stock Level": [140, 45, 210, 18, 550, 90, 12],
-            "Reorder Point": [50, 30, 60, 25, 100, 30, 15],
-            "Unit Price ($)": [22.50, 12.00, 18.50, 4.20, 35.00, 4.50, 15.00],
-        }
+if "inventory_df" not in st.session_state:
+    st.session_state.inventory_df = pd.DataFrame(
+        columns=[
+            "SKU",
+            "Product Name",
+            "Category",
+            "Stock Level",
+            "Reorder Point",
+            "Unit Cost ($)",
+            "Selling Price ($)",
+        ]
     )
 
-    # Orders / Dispatch Data
-    statuses = [
-        "Delivered",
-        "Out for Delivery",
-        "Processing",
-        "Pending Dispatch",
-    ]
-    zones = ["Central Cairo", "Maadi", "New Cairo", "Giza", "6th of October"]
-    drivers = [
-        "Ahmed Hassan",
-        "Karim Zaki",
-        "Omar Mahmoud",
-        "Youssef Ali",
-        "Unassigned",
-    ]
+if "orders_df" not in st.session_state:
+    st.session_state.orders_df = pd.DataFrame(
+        columns=[
+            "Order ID",
+            "Customer / Entity",
+            "Zone",
+            "Items Summary",
+            "Total Quantity",
+            "Total Amount ($)",
+            "Status",
+            "Assigned Driver",
+            "Created Date",
+        ]
+    )
 
-    orders = []
-    base_date = datetime.now() - timedelta(days=7)
-
-    for i in range(1, 46):
-        order_date = base_date + timedelta(
-            days=np.random.randint(0, 7), hours=np.random.randint(8, 18)
-        )
-        status = np.random.choice(statuses, p=[0.5, 0.2, 0.2, 0.1])
-        orders.append(
-            {
-                "Order ID": f"ORD-{202600 + i}",
-                "Customer / Branch": f"Branch #{np.random.randint(101, 115)}",
-                "Zone": np.random.choice(zones),
-                "Items Count": np.random.randint(5, 50),
-                "Total Value ($)": round(np.random.uniform(150, 1800), 2),
-                "Status": status,
-                "Driver": (
-                    "Unassigned"
-                    if status == "Pending Dispatch"
-                    else np.random.choice(drivers[:-1])
-                ),
-                "Order Date": order_date.strftime("%Y-%m-%d %H:%M"),
-            }
-        )
-
-    orders_df = pd.DataFrame(orders)
-    return inventory_df, orders_df
-
-
-if "inventory_df" not in st.session_state or "orders_df" not in st.session_state:
-    st.session_state.inventory_df, st.session_state.orders_df = (
-        load_initial_data()
+if "customers_df" not in st.session_state:
+    st.session_state.customers_df = pd.DataFrame(
+        columns=["Customer ID", "Name", "Zone", "Contact Number", "Total Orders"]
     )
 
 
 # ==========================================
-# 3. SIDEBAR NAVIGATION & FILTERS
+# 3. CLASSIC SIDEBAR MENU NAVIGATION
 # ==========================================
-st.sidebar.title("📦 Mirage Logistics")
-st.sidebar.caption("Distribution & Inventory Command Center")
+st.sidebar.title("🏢 Mirage Operations")
+st.sidebar.caption("Distribution & Logistics Hub")
 
-page = st.sidebar.radio(
-    "Navigation",
+# Classic Selectbox Menu Style restored
+page = st.sidebar.selectbox(
+    "Select View Module",
     [
-        "🚀 Executive Dashboard",
-        "📊 Stock & Inventory",
-        "🚚 Orders & Dispatch",
-        "📈 Analytics & Reports",
+        "Executive Overview",
+        "Inventory & Stock Control",
+        "Dispatch & Order Operations",
+        "Customer Directory",
+        "Data Import / Export & Reports",
     ],
 )
 
 st.sidebar.divider()
-st.sidebar.subheader("Quick Actions")
-if st.sidebar.button("🔄 Refresh Data State"):
-    st.cache_data.clear()
-    st.session_state.inventory_df, st.session_state.orders_df = (
-        load_initial_data()
+
+# System Quick Controls
+st.sidebar.subheader("System Controls")
+if st.sidebar.button("🗑️ Clear All Operational Data"):
+    st.session_state.inventory_df = pd.DataFrame(
+        columns=[
+            "SKU",
+            "Product Name",
+            "Category",
+            "Stock Level",
+            "Reorder Point",
+            "Unit Cost ($)",
+            "Selling Price ($)",
+        ]
     )
+    st.session_state.orders_df = pd.DataFrame(
+        columns=[
+            "Order ID",
+            "Customer / Entity",
+            "Zone",
+            "Items Summary",
+            "Total Quantity",
+            "Total Amount ($)",
+            "Status",
+            "Assigned Driver",
+            "Created Date",
+        ]
+    )
+    st.session_state.customers_df = pd.DataFrame(
+        columns=["Customer ID", "Name", "Zone", "Contact Number", "Total Orders"]
+    )
+    st.success("Database cleared!")
     st.rerun()
 
 
 # ==========================================
-# 4. PAGE 1: EXECUTIVE DASHBOARD
+# 4. MODULE 1: EXECUTIVE OVERVIEW
 # ==========================================
-if page == "🚀 Executive Dashboard":
-    st.title("Executive Control Panel")
-    st.markdown("Real-time summary of Mirage distribution network operations.")
+if page == "Executive Overview":
+    st.title("Executive Dashboard")
+    st.markdown("High-level performance monitoring and distribution metrics.")
 
-    orders_df = st.session_state.orders_df
-    inventory_df = st.session_state.inventory_df
+    inv_df = st.session_state.inventory_df
+    ord_df = st.session_state.orders_df
 
-    # Top KPI Metrics
+    # Calculated Financials & Stock KPIs
+    total_val = (
+        (inv_df["Stock Level"] * inv_df["Selling Price ($)"]).sum()
+        if not inv_df.empty
+        else 0.0
+    )
+    total_cost = (
+        (inv_df["Stock Level"] * inv_df["Unit Cost ($)"]).sum()
+        if not inv_df.empty
+        else 0.0
+    )
+    potential_profit = total_val - total_cost
+
+    low_stock = (
+        len(inv_df[inv_df["Stock Level"] <= inv_df["Reorder Point"]])
+        if not inv_df.empty
+        else 0
+    )
+    active_orders = (
+        len(ord_df[ord_df["Status"].isin(["Pending", "Out for Delivery"])])
+        if not ord_df.empty
+        else 0
+    )
+
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric(
-        "Total Orders (7 Days)",
-        len(orders_df),
-        delta=f"+{len(orders_df[orders_df['Status'] == 'Processing'])} processing",
-    )
-    c2.metric(
-        "Active Deliveries",
-        len(orders_df[orders_df["Status"] == "Out for Delivery"]),
-        delta="Live Tracking",
-    )
-    c3.metric(
-        "Total Revenue",
-        f"${orders_df['Total Value ($)'].sum():,.2f}",
-        delta="+12.4% vs last week",
-    )
-
-    low_stock_count = len(
-        inventory_df[
-            inventory_df["Stock Level"] <= inventory_df["Reorder Point"]
-        ]
-    )
+    c1.metric("Inventory Value", f"${total_val:,.2f}")
+    c2.metric("Projected Margin", f"${potential_profit:,.2f}")
+    c3.metric("Active Deliveries", active_orders)
     c4.metric(
         "Low Stock Alerts",
-        low_stock_count,
-        delta="-Attention Needed" if low_stock_count > 0 else "Optimal",
-        delta_color="inverse" if low_stock_count > 0 else "normal",
+        low_stock,
+        delta="-Action Needed" if low_stock > 0 else "Normal",
+        delta_color="inverse" if low_stock > 0 else "normal",
     )
 
     st.divider()
 
-    # Active Orders Pipeline & Quick Status Breakdown
     col_left, col_right = st.columns([2, 1])
 
     with col_left:
-        st.subheader("⚡ Live Dispatch Stream")
-        status_filter = st.multiselect(
-            "Filter by Status",
-            options=orders_df["Status"].unique(),
-            default=["Out for Delivery", "Pending Dispatch"],
-        )
-        filtered_orders = orders_df[orders_df["Status"].isin(status_filter)]
-        st.dataframe(
-            filtered_orders,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Status": st.column_config.SelectboxColumn(
-                    "Status",
-                    options=[
-                        "Delivered",
-                        "Out for Delivery",
-                        "Processing",
-                        "Pending Dispatch",
-                    ],
-                )
-            },
-        )
+        st.subheader("📋 Active Order Dispatch Stream")
+        if ord_df.empty:
+            st.info("No active orders in the pipeline. Create orders in 'Dispatch & Order Operations'.")
+        else:
+            st.dataframe(
+                ord_df[ord_df["Status"] != "Delivered"],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with col_right:
-        st.subheader("📌 Orders Breakdown")
-        status_counts = orders_df["Status"].value_counts().reset_index()
-        status_counts.columns = ["Status", "Count"]
-        st.bar_chart(data=status_counts, x="Status", y="Count", color="Status")
+        st.subheader("⚠️ Stock Replenishment Warnings")
+        if inv_df.empty:
+            st.info("No products logged in inventory.")
+        else:
+            reorder_needed = inv_df[inv_df["Stock Level"] <= inv_df["Reorder Point"]]
+            if reorder_needed.empty:
+                st.success("All stock levels are above reorder thresholds.")
+            else:
+                st.dataframe(
+                    reorder_needed[["SKU", "Product Name", "Stock Level", "Reorder Point"]],
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 
 # ==========================================
-# 5. PAGE 2: STOCK & INVENTORY
+# 5. MODULE 2: INVENTORY & STOCK CONTROL
 # ==========================================
-elif page == "📊 Stock & Inventory":
-    st.title("Stock & Inventory Management")
+elif page == "Inventory & Stock Control":
+    st.title("Stock & Warehouse Management")
 
-    inventory_df = st.session_state.inventory_df
+    tab1, tab2, tab3 = st.tabs(["Stock Directory & Edit", "➕ Single Item Intake", "📥 Bulk CSV Import"])
 
-    # Quick Add Item / Reorder Panel
-    with st.expander("➕ Add New Inventory Item"):
-        with st.form("add_item_form"):
-            f1, f2, f3 = st.columns(3)
-            p_name = f1.text_input("Product Name")
-            p_cat = f2.selectbox(
-                "Category",
-                ["Coffee", "Syrups", "Mixes", "Dairy/Alt", "Packaging", "Supplies"],
+    # --- Tab 1: Live Interactive Table ---
+    with tab1:
+        st.subheader("Live Warehouse Inventory")
+        if st.session_state.inventory_df.empty:
+            st.info("Inventory table is empty. Add items using the intake form or bulk upload.")
+        else:
+            search = st.text_input("🔍 Search by SKU, Name, or Category", "")
+            filtered = st.session_state.inventory_df[
+                st.session_state.inventory_df["Product Name"].str.contains(search, case=False, na=False)
+                | st.session_state.inventory_df["SKU"].str.contains(search, case=False, na=False)
+                | st.session_state.inventory_df["Category"].str.contains(search, case=False, na=False)
+            ]
+
+            edited_df = st.data_editor(
+                filtered,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="inventory_editor",
             )
-            p_sku = f3.text_input("SKU", value=f"MRG-SKU-{len(inventory_df)+100}")
 
-            f4, f5, f6 = st.columns(3)
-            p_stock = f4.number_input("Initial Stock Level", min_value=0, value=50)
-            p_reorder = f5.number_input("Reorder Threshold", min_value=0, value=20)
-            p_price = f6.number_input(
-                "Unit Price ($)", min_value=0.0, value=10.0, step=0.5
-            )
+            if st.button("💾 Commit Inventory Changes"):
+                st.session_state.inventory_df = edited_df
+                st.success("Inventory updated successfully!")
+                st.rerun()
 
-            if st.form_submit_button("Add Item to Database"):
-                if p_name:
-                    new_row = pd.DataFrame(
-                        [
-                            {
-                                "SKU": p_sku,
-                                "Product Name": p_name,
-                                "Category": p_cat,
-                                "Stock Level": p_stock,
-                                "Reorder Point": p_reorder,
-                                "Unit Price ($)": p_price,
-                            }
-                        ]
-                    )
+    # --- Tab 2: Single Product Intake ---
+    with tab2:
+        st.subheader("Add Single Product")
+        with st.form("add_product_form", clear_on_submit=True):
+            i1, i2, i3 = st.columns(3)
+            sku = i1.text_input("SKU / Code", value=f"MRG-SKU-{len(st.session_state.inventory_df)+101}")
+            p_name = i2.text_input("Product Title")
+            cat = i3.text_input("Category (e.g. Raw Material, Packaging)")
+
+            i4, i5, i6, i7 = st.columns(4)
+            stock = i4.number_input("Starting Quantity", min_value=0, value=0)
+            reorder = i5.number_input("Reorder Threshold", min_value=0, value=10)
+            cost = i6.number_input("Unit Purchase Cost ($)", min_value=0.0, value=0.0, step=0.5)
+            price = i7.number_input("Unit Selling Price ($)", min_value=0.0, value=0.0, step=0.5)
+
+            if st.form_submit_button("Create Inventory Entry"):
+                if p_name and sku:
+                    new_item = pd.DataFrame([
+                        {
+                            "SKU": sku,
+                            "Product Name": p_name,
+                            "Category": cat,
+                            "Stock Level": stock,
+                            "Reorder Point": reorder,
+                            "Unit Cost ($)": cost,
+                            "Selling Price ($)": price,
+                        }
+                    ])
                     st.session_state.inventory_df = pd.concat(
-                        [st.session_state.inventory_df, new_row], ignore_index=True
+                        [st.session_state.inventory_df, new_item], ignore_index=True
                     )
-                    st.success(f"Added '{p_name}' successfully!")
+                    st.success(f"Item '{p_name}' created!")
+                    st.rerun()
+                else:
+                    st.error("Please provide both product title and SKU.")
+
+    # --- Tab 3: Bulk Upload ---
+    with tab3:
+        st.subheader("Batch Import Inventory via CSV")
+        st.caption("CSV columns required: SKU, Product Name, Category, Stock Level, Reorder Point, Unit Cost ($), Selling Price ($)")
+        uploaded_file = st.file_uploader("Choose Inventory CSV File", type=["csv"])
+        if uploaded_file is not None:
+            try:
+                imported_df = pd.read_csv(uploaded_file)
+                st.dataframe(imported_df.head(), use_container_width=True)
+                if st.button("Merge Uploaded File into Active Inventory"):
+                    st.session_state.inventory_df = pd.concat(
+                        [st.session_state.inventory_df, imported_df], ignore_index=True
+                    ).drop_duplicates(subset=["SKU"], keep="last")
+                    st.success("Batch import completed successfully!")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Failed to process file: {e}")
+
+
+# ==========================================
+# 6. MODULE 3: DISPATCH & ORDER OPERATIONS
+# ==========================================
+elif page == "Dispatch & Order Operations":
+    st.title("Order Booking & Delivery Dispatch")
+
+    o_tab1, o_tab2 = st.tabs(["Create & Dispatch Order", "Manage Existing Orders"])
+
+    with o_tab1:
+        st.subheader("New Shipment Request")
+        if st.session_state.inventory_df.empty:
+            st.warning("Please add items to your inventory before generating orders.")
+        else:
+            with st.form("new_order_form", clear_on_submit=True):
+                o1, o2 = st.columns(2)
+                cust_name = o1.text_input("Customer / Entity Name")
+                zone = o2.selectbox("Destination Zone", ["Cairo Central", "Maadi", "New Cairo", "Giza", "6th of October", "Other Area"])
+
+                # Select Product from Live Inventory
+                selected_sku = st.selectbox(
+                    "Select Product",
+                    options=st.session_state.inventory_df["SKU"] + " - " + st.session_state.inventory_df["Product Name"]
+                )
+                
+                o3, o4 = st.columns(2)
+                qty = o3.number_input("Order Quantity", min_value=1, value=1)
+                driver = o4.text_input("Assign Driver Name", value="Unassigned")
+
+                if st.form_submit_button("Book Shipment"):
+                    target_sku = selected_sku.split(" - ")[0]
+                    inv_match = st.session_state.inventory_df[st.session_state.inventory_df["SKU"] == target_sku]
+
+                    if not inv_match.empty:
+                        item_price = inv_match.iloc[0]["Selling Price ($)"]
+                        item_title = inv_match.iloc[0]["Product Name"]
+                        current_stock = inv_match.iloc[0]["Stock Level"]
+
+                        if current_stock < qty:
+                            st.error(f"Insufficient stock! Available quantity: {current_stock}")
+                        else:
+                            # Auto-deduct stock level
+                            st.session_state.inventory_df.loc[
+                                st.session_state.inventory_df["SKU"] == target_sku, "Stock Level"
+                            ] -= qty
+
+                            total_price = item_price * qty
+                            order_id = f"ORD-{len(st.session_state.orders_df)+1001}"
+                            new_ord = pd.DataFrame([{
+                                "Order ID": order_id,
+                                "Customer / Entity": cust_name,
+                                "Zone": zone,
+                                "Items Summary": f"{item_title} (x{qty})",
+                                "Total Quantity": qty,
+                                "Total Amount ($)": total_price,
+                                "Status": "Out for Delivery" if driver != "Unassigned" else "Pending",
+                                "Assigned Driver": driver,
+                                "Created Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            }])
+
+                            st.session_state.orders_df = pd.concat([st.session_state.orders_df, new_ord], ignore_index=True)
+                            st.success(f"Order {order_id} recorded and inventory automatically updated!")
+                            st.rerun()
+
+    with o_tab2:
+        st.subheader("Manage Active Orders Workflow")
+        if st.session_state.orders_df.empty:
+            st.info("No orders logged in the system.")
+        else:
+            orders_edited = st.data_editor(
+                st.session_state.orders_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Status": st.column_config.SelectboxColumn(
+                        "Status",
+                        options=["Pending", "Out for Delivery", "Delivered", "Cancelled"],
+                    )
+                },
+                key="orders_editor",
+            )
+            if st.button("💾 Update Order Statuses"):
+                st.session_state.orders_df = orders_edited
+                st.success("Order records updated!")
+                st.rerun()
+
+
+# ==========================================
+# 7. MODULE 4: CUSTOMER DIRECTORY
+# ==========================================
+elif page == "Customer Directory":
+    st.title("Client & Customer Registry")
+
+    c_col1, c_col2 = st.columns([1, 2])
+
+    with c_col1:
+        st.subheader("Register New Customer")
+        with st.form("cust_form", clear_on_submit=True):
+            c_name = st.text_input("Customer / Business Name")
+            c_zone = st.selectbox("Operating Zone", ["Cairo Central", "Maadi", "New Cairo", "Giza", "6th of October", "Other Area"])
+            c_phone = st.text_input("Contact Number")
+
+            if st.form_submit_button("Add Customer"):
+                if c_name:
+                    cid = f"CUST-{len(st.session_state.customers_df)+101}"
+                    new_c = pd.DataFrame([{
+                        "Customer ID": cid,
+                        "Name": c_name,
+                        "Zone": c_zone,
+                        "Contact Number": c_phone,
+                        "Total Orders": 0,
+                    }])
+                    st.session_state.customers_df = pd.concat([st.session_state.customers_df, new_c], ignore_index=True)
+                    st.success("Customer profile registered!")
                     st.rerun()
 
-    st.divider()
-
-    # Inventory Table with Highlights for Low Stock
-    st.subheader("Current Warehouse Stock Levels")
-
-    search_query = st.text_input("🔍 Search product or SKU...", "")
-    filtered_inv = inventory_df[
-        inventory_df["Product Name"]
-        .str.contains(search_query, case=False)
-        | inventory_df["SKU"].str.contains(search_query, case=False)
-    ]
-
-    # Editable dataframe to update stock levels on the fly
-    edited_inv = st.data_editor(
-        filtered_inv,
-        use_container_width=True,
-        hide_index=True,
-        key="inventory_editor",
-    )
-
-    # Save changes back to session state
-    if st.button("💾 Save Inventory Changes"):
-        st.session_state.inventory_df.update(edited_inv)
-        st.success("Inventory updated successfully!")
+    with c_col2:
+        st.subheader("Customer Profiles")
+        if st.session_state.customers_df.empty:
+            st.info("No registered customers.")
+        else:
+            st.dataframe(st.session_state.customers_df, use_container_width=True, hide_index=True)
 
 
 # ==========================================
-# 6. PAGE 3: ORDERS & DISPATCH
+# 8. MODULE 5: DATA EXPORT & REPORTS
 # ==========================================
-elif page == "🚚 Orders & Dispatch":
-    st.title("Orders & Delivery Routing")
+elif page == "Data Import / Export & Reports":
+    st.title("Data Export Center & Reporting")
 
-    orders_df = st.session_state.orders_df
+    st.markdown("Extract live snapshot reports of your inventory, dispatches, and customer data.")
 
-    col1, col2 = st.columns([1, 1])
+    exp1, exp2, exp3 = st.columns(3)
 
-    with col1:
-        st.subheader("Create New Shipment")
-        with st.form("new_order_form"):
-            branch = st.text_input("Customer / Branch Name")
-            zone = st.selectbox(
-                "Delivery Zone",
-                ["Central Cairo", "Maadi", "New Cairo", "Giza", "6th of October"],
-            )
-            item_count = st.number_input("Items Quantity", min_value=1, value=10)
-            val = st.number_input(
-                "Order Total Value ($)", min_value=1.0, value=250.0
-            )
-            driver = st.selectbox(
-                "Assign Driver",
-                [
-                    "Unassigned",
-                    "Ahmed Hassan",
-                    "Karim Zaki",
-                    "Omar Mahmoud",
-                    "Youssef Ali",
-                ],
-            )
-
-            if st.form_submit_button("Create Dispatch Order"):
-                if branch:
-                    new_order = {
-                        "Order ID": f"ORD-{202600 + len(orders_df) + 1}",
-                        "Customer / Branch": branch,
-                        "Zone": zone,
-                        "Items Count": item_count,
-                        "Total Value ($)": val,
-                        "Status": (
-                            "Pending Dispatch"
-                            if driver == "Unassigned"
-                            else "Out for Delivery"
-                        ),
-                        "Driver": driver,
-                        "Order Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    }
-                    st.session_state.orders_df = pd.concat(
-                        [
-                            pd.DataFrame([new_order]),
-                            st.session_state.orders_df,
-                        ],
-                        ignore_index=True,
-                    )
-                    st.success("Shipment created and dispatched to queue!")
-                    st.rerun()
-
-    with col2:
-        st.subheader("Zone Workload Distribution")
-        zone_summary = (
-            orders_df.groupby("Zone")
-            .agg(Total_Orders=("Order ID", "count"), Total_Value=("Total Value ($)", "sum"))
-            .reset_index()
-        )
-        st.dataframe(zone_summary, use_container_width=True, hide_index=True)
-
-    st.divider()
-    st.subheader("All Orders Management")
-    st.dataframe(orders_df, use_container_width=True, hide_index=True)
-
-
-# ==========================================
-# 7. PAGE 4: ANALYTICS & REPORTS
-# ==========================================
-elif page == "📈 Analytics & Reports":
-    st.title("Analytics & Export Center")
-
-    orders_df = st.session_state.orders_df
-    inventory_df = st.session_state.inventory_df
-
-    m1, m2 = st.columns(2)
-
-    with m1:
-        st.subheader("Revenue by Delivery Zone")
-        zone_revenue = orders_df.groupby("Zone")["Total Value ($)"].sum().reset_index()
-        st.bar_chart(zone_revenue, x="Zone", y="Total Value ($)")
-
-    with m2:
-        st.subheader("Driver Fulfillment Distribution")
-        driver_perf = orders_df["Driver"].value_counts().reset_index()
-        driver_perf.columns = ["Driver", "Shipments Handled"]
-        st.bar_chart(driver_perf, x="Driver", y="Shipments Handled")
-
-    st.divider()
-
-    st.subheader("📥 Export Financial & Logistics Reports")
-    ex1, ex2 = st.columns(2)
-
-    with ex1:
-        csv_inventory = inventory_df.to_csv(index=False).encode("utf-8")
+    with exp1:
+        st.subheader("Warehouse Inventory")
+        inv_csv = st.session_state.inventory_df.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="Download Inventory Report (CSV)",
-            data=csv_inventory,
-            file_name=f"mirage_inventory_{datetime.now().strftime('%Y%m%d')}.csv",
+            data=inv_csv,
+            file_name=f"inventory_report_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
         )
 
-    with ex2:
-        csv_orders = orders_df.to_csv(index=False).encode("utf-8")
+    with exp2:
+        st.subheader("Orders Log")
+        ord_csv = st.session_state.orders_df.to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="Download Dispatch & Orders Log (CSV)",
-            data=csv_orders,
-            file_name=f"mirage_orders_{datetime.now().strftime('%Y%m%d')}.csv",
+            label="Download Orders Log (CSV)",
+            data=ord_csv,
+            file_name=f"orders_report_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+        )
+
+    with exp3:
+        st.subheader("Customer Directory")
+        cust_csv = st.session_state.customers_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="Download Customer Directory (CSV)",
+            data=cust_csv,
+            file_name=f"customers_report_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
         )
