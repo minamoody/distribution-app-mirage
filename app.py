@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import pydeck as pdk
 
 # ==============================================================================
 # 1. APP CONFIGURATION & STYLES
@@ -12,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Modern UI Styling
+# Custom Styling
 st.markdown("""
     <style>
     .main .block-container {
@@ -52,7 +53,7 @@ TRANSLATIONS = {
         "sidebar_caption": "Logistics & Dispatch Management",
         "select_lang": "🌐 Select Language / اختر اللغة",
         "select_module": "Select Module",
-        "mod_map": "🗺️ Interactive Map",
+        "mod_map": "🗺️ Interactive Map & Routes",
         "mod_ai": "🤖 AI-Powered Distributor",
         "mod_logistics": "📦 Logistics Center",
         "mod_hub": "ℹ️ Central Info Hub",
@@ -60,28 +61,34 @@ TRANSLATIONS = {
         "reset_msg": "Database wiped clean!",
         
         # Map Module
-        "map_title": "🗺️ Geographic Dispatch & Ticket Map",
-        "map_sub": "Visual map tracking technician lines and active work orders.",
+        "map_title": "🗺️ Geographic Dispatch & Route Line Map",
+        "map_sub": "Visual map rendering dynamic dispatch lines connecting technicians to their active work orders.",
         "kpi_orders": "Active Orders Mapped",
         "kpi_techs": "Technicians in Field",
         "kpi_zones": "Active Zones",
         "no_map_points": "No coordinates available yet. Upload data containing 'lat' and 'lon' columns in the Central Info Hub.",
-        
+        "map_legend": "🔵 Cyan Pins: Technicians | 🟠 Orange Pins: Work Orders | ⚡ Lines: Active Dispatch Connections",
+
         # AI Module
         "ai_title": "🤖 AI-Powered Smart Dispatch Engine",
-        "ai_sub": "Instantly distribute incoming work orders to the optimal technician line.",
+        "ai_sub": "Instantly distribute incoming work orders to the optimal technician line with dynamic route visualization.",
         "dispatch_matcher": "🎯 Dispatch Matcher",
         "ai_settings": "⚙️ Customize AI Priority Weights",
         "weight_zone": "Zone Match Importance",
         "weight_skill": "Skill Match Importance",
         "weight_cap": "Capacity Availability Bonus",
+        "select_order": "Select Work Order to Dispatch",
         "select_zone": "Select Delivery / Service Zone",
         "select_skill": "Required Specialty / Skill",
         "run_match": "⚡ Run AI Dispatch Match",
         "rec_tech": "Recommended Technician",
         "match_score": "AI Match Score",
+        "assign_btn": "⚡ Confirm & Assign to Technician Line",
+        "assign_success": "Work order successfully assigned to {tech}!",
+        "dispatch_vis": "📍 Target Dispatch Line Preview",
         "tech_capacity": "📋 Technician Lines & Capacity",
         "no_techs": "No technician records found. Upload technician data in the Central Info Hub.",
+        "no_orders_to_dispatch": "No unassigned work orders available.",
         "no_zones_opt": "No zones found (Upload data first)",
         "no_skills_opt": "No skills found (Upload data first)",
 
@@ -118,7 +125,7 @@ TRANSLATIONS = {
         "sidebar_caption": "إدارة اللوجستيات والتوزيع الميداني",
         "select_lang": "🌐 Select Language / اختر اللغة",
         "select_module": "اختر القسم",
-        "mod_map": "🗺️ الخريطة التفاعلية",
+        "mod_map": "🗺️ الخريطة التفاعلية والمسارات",
         "mod_ai": "🤖 الموزع الذكي بالذكاء الاصطناعي",
         "mod_logistics": "📦 مركز اللوجستيات",
         "mod_hub": "ℹ️ مركز المعلومات والرفع",
@@ -126,28 +133,34 @@ TRANSLATIONS = {
         "reset_msg": "تم مسح جميع البيانات بنجاح!",
         
         # Map Module
-        "map_title": "🗺️ خريطة التوزيع الميداني والطلبات",
-        "map_sub": "خريطة تفاعلية لتتبع مواقع الفنيين والطلبات النشطة.",
+        "map_title": "🗺️ خريطة التوزيع الميداني وخطوط المسارات",
+        "map_sub": "عرض تفاعلي ثلاثي الأبعاد لخطوط التوصيل التي تربط الفنيين بالطلبات المسندة إليهم.",
         "kpi_orders": "الطلبات النشطة على الخريطة",
         "kpi_techs": "الفنيون في الميدان",
         "kpi_zones": "المناطق النشطة",
         "no_map_points": "لا توجد إحداثيات حالياً. يرجى رفع ملف يحتوي على أعمدة 'lat' و 'lon' من مركز المعلومات.",
-        
+        "map_legend": "🔵 نقاط سماوية: الفنيون | 🟠 نقاط برتقالية: أوامر العمل | ⚡ الخطوط: مسارات التوزيع النشطة",
+
         # AI Module
         "ai_title": "🤖 محرك التوزيع الذكي بالذكاء الاصطناعي",
-        "ai_sub": "توزيع طلبات الخدمة فورياً على خط الفني الأنسب.",
+        "ai_sub": "توزيع طلبات الخدمة فورياً على خط الفني الأنسب مع معاينة مرئية للمسار.",
         "dispatch_matcher": "🎯 مطابقة التوزيع",
         "ai_settings": "⚙️ تخصيص معايير وأوزان الذكاء الاصطناعي",
         "weight_zone": "أهمية مطابقة المنطقة الجغرافية",
         "weight_skill": "أهمية مطابقة التخصص والمهارة",
         "weight_cap": "مكافأة السعة الاستيعابية المتاحة",
+        "select_order": "اختر امر العمل للتوزيع",
         "select_zone": "اختر منطقة الخدمة / التوصيل",
         "select_skill": "التخصص أو المهارة المطلوبة",
         "run_match": "⚡ تشغيل مطابقة الذكاء الاصطناعي",
         "rec_tech": "الفني الموصى به",
         "match_score": "درجة المطابقة",
+        "assign_btn": "⚡ تأكيد وتعيين إلى خط الفني",
+        "assign_success": "تم إسناد أوردر العمل بنجاح إلى الفني {tech}!",
+        "dispatch_vis": "📍 معاينة خط مسار التوزيع المستهدف",
         "tech_capacity": "📋 خطوط الفنيين والسعة اليومية",
         "no_techs": "لا يوجد فنيون مسجلون. قم برفع بيانات الفنيين من مركز المعلومات.",
+        "no_orders_to_dispatch": "لا توجد أوامر عمل غير مسندة حالياً.",
         "no_zones_opt": "لا توجد مناطق متاحة (برجاء رفع البيانات أولاً)",
         "no_skills_opt": "لا توجد مهارات متاحة (برجاء رفع البيانات أولاً)",
 
@@ -180,15 +193,24 @@ TRANSLATIONS = {
     }
 }
 
+# Neon Color Palette for Technicians
+TECH_COLORS = [
+    [59, 130, 246],   # Electric Blue
+    [16, 185, 129],   # Emerald Green
+    [168, 85, 247],   # Purple
+    [236, 72, 153],   # Pink
+    [245, 158, 11],   # Amber
+    [14, 165, 233],   # Sky Blue
+]
+
 
 # ==============================================================================
-# 3. SESSION STATE INITIALIZATION (CLEAN EMPTY SLATE)
+# 3. SESSION STATE INITIALIZATION (CLEAN SLATE)
 # ==============================================================================
 def init_session_state():
     if "lang" not in st.session_state:
         st.session_state.lang = "EN"
 
-    # Clean Schemas (No sample rows)
     if "inventory_df" not in st.session_state:
         st.session_state.inventory_df = pd.DataFrame(columns=[
             "SKU", "Part Name", "Category", "Bin Location", "Stock Qty", "Min Threshold"
@@ -218,28 +240,27 @@ def t(key):
 def smart_ai_dispatch(zone, skill, w_zone=40, w_skill=40, w_cap=20):
     techs = st.session_state.technicians_df.copy()
     if techs.empty:
-        return "N/A", "N/A", 0
+        return None, "N/A", 0
     
     scores = []
     for _, tech in techs.iterrows():
         score = 0.0
         
-        # Zone match score
+        # Zone match
         if "Assigned Zone" in tech and pd.notnull(tech["Assigned Zone"]):
             if str(tech["Assigned Zone"]).strip().lower() == str(zone).strip().lower():
                 score += float(w_zone)
         
-        # Skill match score
+        # Skill match
         if "Primary Skill" in tech and pd.notnull(tech["Primary Skill"]):
             if str(skill).strip().lower() in str(tech["Primary Skill"]).strip().lower():
                 score += float(w_skill)
         
-        # Capacity availability score
+        # Capacity bonus
         try:
             active = float(tech.get("Active Jobs", 0))
             max_cap = float(tech.get("Max Capacity", 5))
             if active < max_cap:
-                # Proportional score based on available slots
                 avail_ratio = (max_cap - active) / max_cap if max_cap > 0 else 0
                 score += float(w_cap) * avail_ratio
         except:
@@ -247,19 +268,146 @@ def smart_ai_dispatch(zone, skill, w_zone=40, w_skill=40, w_cap=20):
 
         tech_name = tech.get("Name", "Unknown Tech") if pd.notnull(tech.get("Name")) else "Tech"
         tech_id = tech.get("Tech ID", "N/A") if pd.notnull(tech.get("Tech ID")) else "N/A"
-        scores.append((tech_name, tech_id, score))
+        scores.append((tech, tech_name, tech_id, score))
 
-    scores.sort(key=lambda x: x[2], reverse=True)
-    return scores[0] if scores else ("N/A", "N/A", 0)
+    scores.sort(key=lambda x: x[3], reverse=True)
+    return scores[0] if scores else (None, "N/A", 0)
 
 
 # ==============================================================================
-# 5. SIDEBAR NAVIGATION & LANGUAGE TOGGLE
+# 5. PYDECK MAP BUILDER (LINES & ROUTE CONNECTIONS)
+# ==============================================================================
+def render_route_map(focused_line=None):
+    techs_df = st.session_state.technicians_df.copy()
+    orders_df = st.session_state.work_orders_df.copy()
+
+    # Clean numeric coordinates
+    tech_points = []
+    if not techs_df.empty:
+        for idx, t_row in techs_df.iterrows():
+            try:
+                lat, lon = float(t_row["lat"]), float(t_row["lon"])
+                if not (np.isnan(lat) or np.isnan(lon)):
+                    color = TECH_COLORS[idx % len(TECH_COLORS)]
+                    tech_points.append({
+                        "name": str(t_row.get("Name", "Tech")),
+                        "id": str(t_row.get("Tech ID", "N/A")),
+                        "lat": lat,
+                        "lon": lon,
+                        "color": color
+                    })
+            except: pass
+
+    order_points = []
+    lines = []
+    
+    if not orders_df.empty:
+        for idx, w_row in orders_df.iterrows():
+            try:
+                w_lat, w_lon = float(w_row["lat"]), float(w_row["lon"])
+                if not (np.isnan(w_lat) or np.isnan(w_lon)):
+                    assigned_tech = str(w_row.get("Assigned Tech", "")).strip()
+                    
+                    # Find matching technician to draw line
+                    matched_tech = next((tp for tp in tech_points if tp["name"].strip().lower() == assigned_tech.lower() or tp["id"].strip().lower() == assigned_tech.lower()), None)
+                    
+                    line_color = matched_tech["color"] if matched_tech else [245, 158, 11] # Orange for unassigned
+                    
+                    order_points.append({
+                        "ticket": str(w_row.get("Ticket ID", "WO")),
+                        "client": str(w_row.get("Client Name", "Client")),
+                        "lat": w_lat,
+                        "lon": w_lon,
+                        "assigned": assigned_tech or "Unassigned",
+                        "color": line_color
+                    })
+
+                    if matched_tech:
+                        lines.append({
+                            "from_name": matched_tech["name"],
+                            "to_ticket": str(w_row.get("Ticket ID", "WO")),
+                            "start": [matched_tech["lon"], matched_tech["lat"]],
+                            "end": [w_lon, w_lat],
+                            "color": matched_tech["color"]
+                        })
+            except: pass
+
+    # If single focused line preview from AI Dispatch
+    if focused_line:
+        lines.append(focused_line)
+
+    all_lats = [p["lat"] for p in tech_points + order_points]
+    all_lons = [p["lon"] for p in tech_points + order_points]
+    
+    center_lat = np.mean(all_lats) if all_lats else 30.0444
+    center_lon = np.mean(all_lons) if all_lons else 31.2357
+
+    # Pydeck Layers
+    layers = []
+
+    # 1. Dispatch Connection Lines Layer
+    if lines:
+        layers.append(
+            pdk.Layer(
+                "LineLayer",
+                data=lines,
+                get_source_position="start",
+                get_target_position="end",
+                get_color="color",
+                get_width=5,
+                pickable=True
+            )
+        )
+
+    # 2. Technician Pins Layer (Cyan/Blue Rings)
+    if tech_points:
+        layers.append(
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=tech_points,
+                get_position=["lon", "lat"],
+                get_color="color",
+                get_radius=300,
+                pickable=True
+            )
+        )
+
+    # 3. Work Order Pins Layer (Orange Rings)
+    if order_points:
+        layers.append(
+            pdk.Layer(
+                "ScatterplotLayer",
+                data=order_points,
+                get_position=["lon", "lat"],
+                get_color="color",
+                get_radius=180,
+                pickable=True
+            )
+        )
+
+    view_state = pdk.ViewState(
+        latitude=center_lat,
+        longitude=center_lon,
+        zoom=11,
+        pitch=35
+    )
+
+    st.pydeck_chart(
+        pdk.Deck(
+            layers=layers,
+            initial_view_state=view_state,
+            tooltip={"text": "{name}{ticket} ({assigned})\nLat: {lat}, Lon: {lon}"},
+            map_style="mapbox://styles/mapbox/dark-v11"
+        )
+    )
+
+
+# ==============================================================================
+# 6. SIDEBAR NAVIGATION & LANGUAGE TOGGLE
 # ==============================================================================
 st.sidebar.title(t("sidebar_title"))
 st.sidebar.caption(t("sidebar_caption"))
 
-# Language Switcher
 selected_language = st.sidebar.selectbox(
     t("select_lang"),
     options=["English", "العربية"],
@@ -290,13 +438,12 @@ if st.sidebar.button(t("reset_btn")):
 
 
 # ==============================================================================
-# MODULE 1: INTERACTIVE MAP
+# MODULE 1: INTERACTIVE MAP & ROUTE LINES
 # ==============================================================================
 if nav_choice == t("mod_map"):
     st.title(t("map_title"))
     st.markdown(t("map_sub"))
 
-    # Safely compute KPI counts
     orders_count = len(st.session_state.work_orders_df)
     techs_count = len(st.session_state.technicians_df)
     
@@ -313,43 +460,22 @@ if nav_choice == t("mod_map"):
         st.markdown(f'<div class="kpi-card" style="border-left-color: #8b5cf6;"><div class="kpi-title">{t("kpi_zones")}</div><div class="kpi-value">{active_zones_count}</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+    st.caption(t("map_legend"))
 
-    # Safely build map points
-    map_points = []
-    
-    if not st.session_state.technicians_df.empty:
-        for _, t_row in st.session_state.technicians_df.iterrows():
-            if "lat" in t_row and "lon" in t_row:
-                try:
-                    lat, lon = float(t_row["lat"]), float(t_row["lon"])
-                    if not (np.isnan(lat) or np.isnan(lon)):
-                        map_points.append({"lat": lat, "lon": lon})
-                except: pass
-
-    if not st.session_state.work_orders_df.empty:
-        for _, w_row in st.session_state.work_orders_df.iterrows():
-            if "lat" in w_row and "lon" in w_row:
-                try:
-                    lat, lon = float(w_row["lat"]), float(w_row["lon"])
-                    if not (np.isnan(lat) or np.isnan(lon)):
-                        map_points.append({"lat": lat, "lon": lon})
-                except: pass
-
-    if map_points:
-        st.map(pd.DataFrame(map_points), latitude="lat", longitude="lon", size=20)
-    else:
+    if techs_count == 0 and orders_count == 0:
         st.info(t("no_map_points"))
+    else:
+        render_route_map()
 
 
 # ==============================================================================
-# MODULE 2: AI-POWERED DISTRIBUTOR (WITH CUSTOMIZABLE WEIGHTS)
+# MODULE 2: AI-POWERED DISTRIBUTOR (WITH DYNAMIC DISPATCH VISUALIZER)
 # ==============================================================================
 elif nav_choice == t("mod_ai"):
     st.title(t("ai_title"))
     st.markdown(t("ai_sub"))
 
-    # Customizable AI Parameters Expander
-    with st.expander(t("ai_settings"), expanded=True):
+    with st.expander(t("ai_settings"), expanded=False):
         sc1, sc2, sc3 = st.columns(3)
         with sc1:
             w_zone = st.slider(t("weight_zone"), 0, 100, 40)
@@ -363,33 +489,68 @@ elif nav_choice == t("mod_ai"):
     with col1:
         st.subheader(t("dispatch_matcher"))
         
-        # Populate available zones safely
+        # Select target order if present
+        target_ticket = None
+        target_order_row = None
+        if not st.session_state.work_orders_df.empty and "Ticket ID" in st.session_state.work_orders_df.columns:
+            order_opts = st.session_state.work_orders_df["Ticket ID"].dropna().unique().tolist()
+            if order_opts:
+                target_ticket = st.selectbox(t("select_order"), order_opts)
+                target_order_row = st.session_state.work_orders_df[st.session_state.work_orders_df["Ticket ID"] == target_ticket].iloc[0]
+
+        # Select zone & skill
         zones_list = []
         if not st.session_state.technicians_df.empty and "Assigned Zone" in st.session_state.technicians_df.columns:
             zones_list = [str(z).strip() for z in st.session_state.technicians_df["Assigned Zone"].dropna().unique() if str(z).strip()]
-        
-        if not zones_list:
-            zones_list = [t("no_zones_opt")]
+        if not zones_list: zones_list = [t("no_zones_opt")]
 
-        # Populate available skills safely
         skills_list = []
         if not st.session_state.technicians_df.empty and "Primary Skill" in st.session_state.technicians_df.columns:
             skills_list = [str(s).strip() for s in st.session_state.technicians_df["Primary Skill"].dropna().unique() if str(s).strip()]
-        
-        if not skills_list:
-            skills_list = [t("no_skills_opt")]
+        if not skills_list: skills_list = [t("no_skills_opt")]
 
-        sel_zone = st.selectbox(t("select_zone"), zones_list)
-        sel_skill = st.selectbox(t("select_skill"), skills_list)
+        sel_zone = st.selectbox(t("select_zone"), zones_list, index=0)
+        sel_skill = st.selectbox(t("select_skill"), skills_list, index=0)
         
         if st.button(t("run_match")):
             if st.session_state.technicians_df.empty:
                 st.warning(t("no_techs"))
             else:
-                best_tech, tech_id, score = smart_ai_dispatch(sel_zone, sel_skill, w_zone, w_skill, w_cap)
+                tech_row, best_tech, tech_id, score = smart_ai_dispatch(sel_zone, sel_skill, w_zone, w_skill, w_cap)
                 if best_tech != "N/A":
                     st.success(f"**{t('rec_tech')}:** {best_tech} ({tech_id})")
                     st.info(f"**{t('match_score')}:** {score:.0f} points")
+                    
+                    # Confirm dispatch assignment button
+                    if target_ticket and st.button(t("assign_btn")):
+                        st.session_state.work_orders_df.loc[
+                            st.session_state.work_orders_df["Ticket ID"] == target_ticket, "Assigned Tech"
+                        ] = best_tech
+                        
+                        # Increment active jobs count
+                        st.session_state.technicians_df.loc[
+                            st.session_state.technicians_df["Name"] == best_tech, "Active Jobs"
+                        ] = pd.to_numeric(tech_row.get("Active Jobs", 0), errors='coerce') + 1
+
+                        st.success(t("assign_success").format(tech=best_tech))
+                        st.rerun()
+
+                    # Render dispatch connection line preview
+                    if target_order_row is not None and tech_row is not None:
+                        try:
+                            t_lat, t_lon = float(tech_row["lat"]), float(tech_row["lon"])
+                            o_lat, o_lon = float(target_order_row["lat"]), float(target_order_row["lon"])
+                            
+                            focused_line = {
+                                "from_name": best_tech,
+                                "to_ticket": target_ticket,
+                                "start": [t_lon, t_lat],
+                                "end": [o_lon, o_lat],
+                                "color": [239, 68, 68] # Bright Red
+                            }
+                            st.subheader(t("dispatch_vis"))
+                            render_route_map(focused_line=focused_line)
+                        except: pass
                 else:
                     st.warning(t("no_techs"))
 
@@ -408,7 +569,6 @@ elif nav_choice == t("mod_logistics"):
     st.title(t("logistics_title"))
     st.markdown(t("logistics_sub"))
 
-    # Safely check low stock
     if not st.session_state.inventory_df.empty and "Stock Qty" in st.session_state.inventory_df.columns and "Min Threshold" in st.session_state.inventory_df.columns:
         try:
             stock_q = pd.to_numeric(st.session_state.inventory_df["Stock Qty"], errors='coerce')
@@ -419,13 +579,7 @@ elif nav_choice == t("mod_logistics"):
         except: pass
 
     st.subheader(t("inv_master"))
-    
-    edited_inv = st.data_editor(
-        st.session_state.inventory_df,
-        use_container_width=True,
-        num_rows="dynamic"
-    )
-    
+    edited_inv = st.data_editor(st.session_state.inventory_df, use_container_width=True, num_rows="dynamic")
     if st.button(t("save_stock")):
         st.session_state.inventory_df = edited_inv
         st.success(t("stock_saved"))
