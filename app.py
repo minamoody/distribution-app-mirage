@@ -24,11 +24,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Automatically resolve Gemini API Key from environment or Streamlit secrets
-ACTIVE_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", ""))
+# Automatically resolve Gemini API Key from environment, Streamlit secrets, or session state
+if "custom_api_key" not in st.session_state:
+    st.session_state.custom_api_key = ""
+
+ACTIVE_API_KEY = (
+    st.session_state.custom_api_key.strip()
+    or os.getenv("GEMINI_API_KEY", "")
+    or st.secrets.get("GEMINI_API_KEY", "")
+)
 
 if HAS_GENAI and ACTIVE_API_KEY:
-    genai.configure(api_key=ACTIVE_API_KEY)
+    try:
+        genai.configure(api_key=ACTIVE_API_KEY)
+    except Exception:
+        pass
 
 # ==========================================
 # 1. BILINGUAL TRANSLATION DICTIONARY (EN/AR)
@@ -93,7 +103,7 @@ TRANSLATIONS = {
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
         "est_hours": "الوقت المتوقع للإنجاز",
-        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
+        "submit_summary": "🚀 إرسال التتقرير ومزامنة ملف Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الآلي (دورة توزيع كل دقيقة)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات المرفوعة تلقائياً على الفنيين بفواصل زمنية مدتها دقيقة واحدة.",
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
@@ -119,7 +129,7 @@ st.session_state.setdefault("eod_excel_records", [])
 st.session_state.setdefault("customer_ratings", [])
 st.session_state.setdefault("show_ai_panel", False)
 st.session_state.setdefault("side_chat_history", [
-    {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. I have full live visibility into your drivers, pending queues, and dispatch logs. Ask me anything!"}
+    {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. Ask me anything about driver capacity, active delivery status, or system logs."}
 ])
 
 T = TRANSLATIONS[st.session_state.language]
@@ -132,20 +142,28 @@ def initialize_empty_state():
     st.session_state.customer_ratings = []
     st.session_state.show_ai_panel = False
     st.session_state.side_chat_history = [
-        {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. I have full live visibility into your drivers, pending queues, and dispatch logs. Ask me anything!"}
+        {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. Ask me anything about driver capacity, active delivery status, or system logs."}
     ]
 
 # ==========================================
 # 3. HIGH-INTELLIGENCE CONVERSATIONAL AI ENGINE
 # ==========================================
 def run_chatable_gemini_query(user_query):
-    if not ACTIVE_API_KEY:
-        return "⚠️ **Gemini API Key Missing.** Please ensure `GEMINI_API_KEY` is set in your environment variables or Streamlit secrets."
+    current_key = (
+        st.session_state.custom_api_key.strip()
+        or os.getenv("GEMINI_API_KEY", "")
+        or st.secrets.get("GEMINI_API_KEY", "")
+    )
+
+    if not current_key:
+        return "Gemini API key is not configured. Please enter your API key in the field above to activate live responses."
 
     if not HAS_GENAI:
-        return "❌ `google-generativeai` package is not installed."
+        return "The `google-generativeai` package is not installed in the environment."
 
     try:
+        genai.configure(api_key=current_key)
+        
         deep_context = {
             "fleet_roster_summary": st.session_state.drivers,
             "unassigned_orders_queue": st.session_state.unassigned_orders,
@@ -155,17 +173,16 @@ def run_chatable_gemini_query(user_query):
         }
         
         system_instruction = f"""
-        You are Gemini, an elite Operations Intelligence Strategist and Code Architect embedded into Mirage Distribution & Fleet Command.
-        You possess real-time direct access to the entire live system memory state outlined below:
+        You are Gemini, an elite Operations Intelligence Strategist embedded into Mirage Distribution & Fleet Command.
+        You possess real-time access to the system memory below:
 
         === LIVE SYSTEM REAL-TIME DATA ===
         {json.dumps(deep_context, indent=2, default=str)}
         ==================================
 
-        YOUR ROLE & INSTRUCTIONS:
-        1. Answer questions about fleet load, unassigned orders, delivery priorities, driver bottlenecks, and execution efficiency using the exact real-time data above.
-        2. Provide expert advice on Python/Streamlit code improvements, logistics optimizations, and routing logic when asked.
-        3. Be clear, analytical, and direct. Use structured bullet points and bold formatting where appropriate.
+        Instructions:
+        1. Answer queries about fleet load, unassigned orders, delivery priorities, and operational efficiency clearly and concisely.
+        2. Keep tone direct, professional, and helpful.
         """
 
         formatted_history = []
@@ -198,7 +215,7 @@ def run_chatable_gemini_query(user_query):
             return response.text
 
     except Exception as e:
-        return f"❌ **AI Processing Error:** {str(e)}"
+        return f"Could not process request: {str(e)}"
 
 # ==========================================
 # 4. HELPER MATH & DISPATCH ENGINES
@@ -391,7 +408,7 @@ with main_col:
         st.caption("Drill-down order inspection, field notes entry, and Excel sync.")
         
         if not st.session_state.drivers:
-            st.warning("⚠️ No technicians currently loaded. Please upload your Excel files in the 'Excel Upload Hub'.")
+            st.info("No technicians currently loaded. Please upload your Excel files in the 'Excel Upload Hub'.")
         else:
             col_driver_sel, m1, m2 = st.columns([2, 1, 1])
             
@@ -485,7 +502,7 @@ with main_col:
                     })
                 st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
             else:
-                st.warning("No technicians loaded. Please upload your Technicians Excel file.")
+                st.info("No technicians loaded. Please upload your Technicians Excel file.")
             
         st.markdown("---")
         
@@ -501,7 +518,7 @@ with main_col:
         with btn_col2:
             if st.button(T['run_1min_loop'], use_container_width=True):
                 if not st.session_state.unassigned_orders:
-                    st.warning("No orders pending to dispatch.")
+                    st.info("No orders pending to dispatch.")
                 elif not st.session_state.drivers:
                     st.error("No technicians loaded. Please upload Technicians Excel first.")
                 else:
@@ -572,7 +589,7 @@ with main_col:
                         st.success("🟢 WITHIN GEOFENCE RADIUS (< 500m)")
                         target_obj["status"] = "On Site"
                     else:
-                        st.warning("🔴 OUTSIDE GEOFENCE RADIUS")
+                        st.info("🔴 OUTSIDE GEOFENCE RADIUS")
 
     # --- MODULE 5: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
@@ -636,7 +653,7 @@ with main_col:
         st.markdown("---")
         
         if not st.session_state.eod_excel_records:
-            st.warning("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
+            st.info("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
         else:
             df_eod = pd.DataFrame(st.session_state.eod_excel_records)
             st.subheader("📋 Master End-of-Day Report Stream")
@@ -665,9 +682,17 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
         st.subheader("🤖 Gemini Operations Strategist")
         st.caption("Live AI assistant with full system memory")
+        
+        # Clean inline key input field if key isn't provided in env
+        if not ACTIVE_API_KEY:
+            entered_key = st.text_input("Enter Gemini API Key (Optional):", type="password", key="key_input_chat")
+            if entered_key:
+                st.session_state.custom_api_key = entered_key
+                st.rerun()
+
         st.markdown("---")
 
-        chat_container = st.container(height=520)
+        chat_container = st.container(height=480)
         
         with chat_container:
             for message in st.session_state.side_chat_history:
