@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 # Hardcoded master API key for automatic server connection (accessible to all users)
-MASTER_API_KEY = "YOUR_ACTUAL_GEMINI_API_KEY_HERE"
+MASTER_API_KEY = "AIzaSyD..."
 
 if HAS_GENAI and MASTER_API_KEY:
     try:
