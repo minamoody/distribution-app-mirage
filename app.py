@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Automatically resolve Gemini API Key from environment or Streamlit secrets (no password input needed)
+# Automatically resolve Gemini API Key from environment or Streamlit secrets
 ACTIVE_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", ""))
 
 if HAS_GENAI and ACTIVE_API_KEY:
@@ -45,9 +45,6 @@ TRANSLATIONS = {
         "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
-        "sys_status": "System Operational Status",
-        "ai_active": "🟢 Gemini AI Intelligence: Ready",
-        "ai_offline": "⚠️ Gemini API Key Not Detected in Env/Secrets",
         "select_driver": "📌 Select Assigned Driver/Technician:",
         "total_jobs": "Total Assigned Orders",
         "completed_jobs": "Completed Today",
@@ -84,9 +81,6 @@ TRANSLATIONS = {
         "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
-        "sys_status": "حالة النظام Operational",
-        "ai_active": "🟢 الذكاء الاصطناعي: جاهز للعمل",
-        "ai_offline": "⚠️ مفتاح API غير موجود في إعدادات النظام",
         "select_driver": "📌 اختر السائق / الفني الميداني:",
         "total_jobs": "إجمالي طلبات التوزيع",
         "completed_jobs": "تم إنجازه اليوم",
@@ -146,13 +140,12 @@ def initialize_empty_state():
 # ==========================================
 def run_chatable_gemini_query(user_query):
     if not ACTIVE_API_KEY:
-        return "⚠️ **Gemini API Key Missing.** Please set `GEMINI_API_KEY` in your environment variables or `.streamlit/secrets.toml`."
+        return "⚠️ **Gemini API Key Missing.** Please ensure `GEMINI_API_KEY` is set in your environment variables or Streamlit secrets."
 
     if not HAS_GENAI:
         return "❌ `google-generativeai` package is not installed."
 
     try:
-        # Build ultra-rich live operational context
         deep_context = {
             "fleet_roster_summary": st.session_state.drivers,
             "unassigned_orders_queue": st.session_state.unassigned_orders,
@@ -181,7 +174,7 @@ def run_chatable_gemini_query(user_query):
             formatted_history.append({"role": role, "parts": [msg["content"]]})
 
         generation_config = genai.types.GenerationConfig(
-            temperature=0.2,  # Low temperature for sharp analytical precision
+            temperature=0.2,
             top_p=0.95
         )
 
@@ -279,12 +272,6 @@ app_module = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-
-st.sidebar.caption(T['sys_status'])
-if ACTIVE_API_KEY:
-    st.sidebar.success(T['ai_active'])
-else:
-    st.sidebar.warning(T['ai_offline'])
 
 if st.sidebar.button(T['clear_session'], type="secondary", use_container_width=True):
     initialize_empty_state()
