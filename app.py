@@ -10,14 +10,24 @@ import folium
 from streamlit_folium import st_folium
 
 # -------------------------------------------------------------------
-# 1. PAGE CONFIG & STYLING
+# 1. PAGE CONFIG & CUSTOM CSS STYLING
 # -------------------------------------------------------------------
 st.set_page_config(
-    page_title="Dispatch Command & Field Tech GPS Tracker",
+    page_title="AI Dispatch Command & Live Fleet Tracker",
     layout="wide",
     page_icon="⚡",
     initial_sidebar_state="expanded"
 )
+
+# Custom Styling for operational UI
+st.markdown("""
+<style>
+    .main .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    .stMetric { background-color: #f8f9fa; border-radius: 8px; padding: 10px; border-left: 4px solid #1E88E5; }
+    .alert-card { background-color: #ffebee; border-left: 6px solid #d32f2f; padding: 15px; border-radius: 6px; margin-bottom: 10px; }
+    .success-card { background-color: #e8f5e9; border-left: 6px solid #388e3c; padding: 15px; border-radius: 6px; margin-bottom: 10px; }
+</style>
+""", unsafe_allow_html=True)
 
 MIRAGE_CENTER_COORDS = (30.0074, 31.4312)
 
@@ -47,9 +57,35 @@ SERVICE_DURATIONS_MIN = {
     "inspection": 30
 }
 
+TECH_ROUTE_COLORS = [
+    "red", "blue", "green", "purple", "orange", "darkred", 
+    "lightred", "beige", "darkblue", "darkgreen", "cadetblue", 
+    "darkpurple", "white", "pink", "lightblue", "lightgreen"
+]
+
 # -------------------------------------------------------------------
-# 2. DATABASE INITIALIZATION & HELPER FUNCTIONS
+# 2. DATABASE INITIALIZATION & ROBUST SCHEMA MIGRATION
 # -------------------------------------------------------------------
+REQUIRED_COLUMNS = [
+    ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+    ("name", "TEXT UNIQUE"),
+    ("phone", "TEXT"),
+    ("brand", "TEXT"),
+    ("appliance_specialty", "TEXT"),
+    ("skills", "TEXT"),
+    ("vehicle", "TEXT"),
+    ("capacity", "INTEGER"),
+    ("start_type", "TEXT"),
+    ("home_zone", "TEXT"),
+    ("max_radius_km", "INTEGER"),
+    ("experience", "TEXT"),
+    ("status", "TEXT"),
+    ("last_lat", "REAL"),
+    ("last_lng", "REAL"),
+    ("last_ping", "TEXT"),
+    ("active_status", "TEXT")
+]
+
 def init_db():
     with sqlite3.connect("dispatch_system.db") as conn:
         c = conn.cursor()
@@ -75,6 +111,13 @@ def init_db():
             )
         """)
         
+        # Auto-Schema Migration: Adds any missing columns to existing database
+        c.execute("PRAGMA table_info(technicians)")
+        existing_cols = [col[1] for col in c.fetchall()]
+        for col_name, col_type in REQUIRED_COLUMNS:
+            if col_name not in existing_cols and col_name != "id":
+                c.execute(f"ALTER TABLE technicians ADD COLUMN {col_name} {col_type}")
+
         c.execute("""
             CREATE TABLE IF NOT EXISTS alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,7 +150,19 @@ init_db()
 
 def get_tech_df():
     with sqlite3.connect("dispatch_system.db") as conn:
-        return pd.read_sql_query("SELECT * FROM technicians", conn)
+        df = pd.read_sql_query("SELECT * FROM technicians", conn)
+        defaults = {
+            "name": "Unknown", "phone": "000", "brand": "All", "appliance_specialty": "All",
+            "skills": "General", "vehicle": "Car", "capacity": 8, "start_type": "Mirage Service Center",
+            "home_zone": "Tagamoa", "max_radius_km": 35, "experience": "Mid", "status": "Active",
+            "last_lat": 30.0074, "last_lng": 31.4312, "last_ping": "N/A", "active_status": "Idle"
+        }
+        for col, default_val in defaults.items():
+            if col not in df.columns:
+                df[col] = default_val
+            else:
+                df[col] = df[col].fillna(default_val)
+        return df
 
 def save_tech_df(df):
     with sqlite3.connect("dispatch_system.db") as conn:
@@ -137,7 +192,7 @@ def reply_alert(alert_id, reply_text):
         conn.commit()
 
 # -------------------------------------------------------------------
-# 3. FAST GEOGRAPHIC MATH & COORDINATE RESOLUTION
+# 3. GEOGRAPHIC MATH & COORDINATE RESOLUTION
 # -------------------------------------------------------------------
 @st.cache_data
 def fast_haversine_km(lat1, lon1, lat2, lon2):
@@ -149,15 +204,15 @@ def fast_haversine_km(lat1, lon1, lat2, lon2):
     return R * c
 
 def get_effective_coords(row):
-    if str(row.get('start_type')) == "Mirage Service Center":
+    if str(row.get('start_type', '')) == "Mirage Service Center":
         return MIRAGE_CENTER_COORDS
     zone_raw = str(row.get('home_zone', '')).upper().strip()
     return next((coords for k, coords in CITY_COORDS.items() if k in zone_raw or zone_raw in k), MIRAGE_CENTER_COORDS)
 
 # -------------------------------------------------------------------
-# 4. DISPATCH ENGINE (TSP SEQUENCING)
+# 4. DISPATCH ENGINE & TSP ROUTE OPTIMIZATION
 # -------------------------------------------------------------------
-def run_optimized_dispatch(df_raw, tech_df, allow_overflow=True, traffic_factor=1.2):
+def run_optimized_dispatch(df_raw, tech_df, allow_overflow=True, traffic_factor=1.2, emergency_priority_weight=30.0):
     orders = df_raw.copy()
     col_map = {c: c.strip().title().replace(" ", "_") for c in orders.columns}
     orders.rename(columns=col_map, inplace=True)
@@ -233,7 +288,7 @@ def run_optimized_dispatch(df_raw, tech_df, allow_overflow=True, traffic_factor=
             if any(order_appliance in s or s in order_appliance or 'all' in s for s in info['specialties']):
                 score -= 10.0
             if is_emergency:
-                score -= 30.0
+                score -= emergency_priority_weight
 
             candidates.append((name, score, dist_km))
 
@@ -244,7 +299,7 @@ def run_optimized_dispatch(df_raw, tech_df, allow_overflow=True, traffic_factor=
             tracker[best_tech]['projected_revenue'] += revenue
             tracker[best_tech]['total_work_min'] += row['Est_Duration_Min']
 
-    # TSP Route Sequencing
+    # TSP Route Sequencing (Nearest Neighbor with Base Return)
     for name, info in tracker.items():
         job_indices = info['assigned_jobs']
         if not job_indices: continue
@@ -313,23 +368,48 @@ if app_mode == "🏢 Dispatch Command Center":
         with c1:
             uploaded_file = st.file_uploader("Upload Today's Work Orders (.xlsx or .csv)", type=["xlsx", "csv"])
         with c2:
+            st.subheader("⚙️ Dispatch Tuning Parameters")
             allow_overflow = st.checkbox("Allow Cross-Brand Overflow", value=True)
-            traffic_factor = st.slider("Traffic Congestion Multiplier", 1.0, 2.0, 1.2)
-            fuel_rate = st.number_input("Fuel Cost / KM (EGP)", value=4.5)
+            traffic_factor = st.slider("Traffic Congestion Multiplier", 1.0, 2.0, 1.2, 0.1)
+            emergency_weight = st.slider("Emergency Prioritization Factor", 10.0, 50.0, 30.0, 5.0)
+            fuel_rate = st.number_input("Fuel Cost / KM (EGP)", value=4.5, step=0.5)
 
         if uploaded_file:
             df_raw = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             st.success(f"Successfully loaded {len(df_raw)} work orders!")
             
-            if st.button("⚡ Execute AI Routing & Dispatch", type="primary"):
-                active_orders, cancelled_postponed, tracker = run_optimized_dispatch(df_raw, tech_df, allow_overflow, traffic_factor)
+            with st.expander("👀 Raw Work Orders Preview", expanded=False):
+                st.dataframe(df_raw.head(10), use_container_width=True)
+
+            if st.button("⚡ Execute AI Routing & Dispatch Optimization", type="primary"):
+                active_orders, cancelled_postponed, tracker = run_optimized_dispatch(
+                    df_raw, tech_df, allow_overflow, traffic_factor, emergency_weight
+                )
                 st.session_state['active_orders'] = active_orders
                 st.session_state['cancelled_postponed'] = cancelled_postponed
                 st.session_state['tracker'] = tracker
                 st.session_state['fuel_rate'] = fuel_rate
 
-                st.dataframe(active_orders[['Stop_Sequence', 'Assigned_Tech', 'Work_Order', 'Brand', 'Customer_Name', 'City', 'Time_Slot', 'Est_Duration_Min', 'Est_Travel_KM', 'Is_Emergency']], use_container_width=True)
+                st.subheader("📋 Dispatched Work Orders (Sequenced by Technician)")
+                
+                # Summary Metrics
+                m1, m2, m3, m4 = st.columns(4)
+                assigned_cnt = len(active_orders[active_orders['Assigned_Tech'] != 'Unassigned'])
+                unassigned_cnt = len(active_orders[active_orders['Assigned_Tech'] == 'Unassigned'])
+                total_rev = sum(t['projected_revenue'] for t in tracker.values())
+                total_dist = sum(t['total_dist_km'] for t in tracker.values())
 
+                m1.metric("Assigned Orders", assigned_cnt)
+                m2.metric("Unassigned Orders", unassigned_cnt)
+                m3.metric("Est. Total Revenue", f"{total_rev:,.0f} EGP")
+                m4.metric("Est. Total Distance", f"{total_dist:,.1f} KM")
+
+                st.dataframe(
+                    active_orders[['Stop_Sequence', 'Assigned_Tech', 'Work_Order', 'Brand', 'Customer_Name', 'City', 'Time_Slot', 'Est_Duration_Min', 'Est_Travel_KM', 'Is_Emergency']], 
+                    use_container_width=True
+                )
+
+                # Export Multi-Sheet Report
                 multi_excel = io.BytesIO()
                 with pd.ExcelWriter(multi_excel, engine='openpyxl') as writer:
                     active_orders.to_excel(writer, index=False, sheet_name='Dispatched_Orders_TSP')
@@ -341,12 +421,17 @@ if app_mode == "🏢 Dispatch Command Center":
                             "Capacity": info['capacity'],
                             "Travel KM": round(info['total_dist_km'], 1),
                             "Work Hours": round(info['total_work_min']/60.0, 1),
-                            "Revenue (EGP)": info['projected_revenue']
+                            "Revenue (EGP)": info['projected_revenue'],
+                            "Fuel Cost (EGP)": round(info['total_dist_km'] * fuel_rate, 1)
                         })
                     pd.DataFrame(perf_rows).to_excel(writer, index=False, sheet_name='Tech_Performance')
                     cancelled_postponed.to_excel(writer, index=False, sheet_name='Cancelled_Postponed')
 
-                st.download_button("📥 Download Master Multi-Sheet Dispatch Report", multi_excel.getvalue(), "Master_Dispatch_Report.xlsx")
+                st.download_button(
+                    "📥 Download Master Multi-Sheet Dispatch Report (.xlsx)", 
+                    multi_excel.getvalue(), 
+                    f"Master_Dispatch_Report_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                )
 
     # TAB 2: ROUTE MAP
     with nav2:
@@ -354,18 +439,36 @@ if app_mode == "🏢 Dispatch Command Center":
         if 'active_orders' in st.session_state:
             orders = st.session_state['active_orders']
             m = folium.Map(location=MIRAGE_CENTER_COORDS, zoom_start=11)
-            folium.Marker(MIRAGE_CENTER_COORDS, popup="🏭 Mirage Base Center", icon=folium.Icon(color="red", icon="building", prefix="fa")).add_to(m)
+            folium.Marker(MIRAGE_CENTER_COORDS, popup="🏭 Mirage Base Center", tooltip="Mirage Base Center", icon=folium.Icon(color="darkred", icon="building", prefix="fa")).add_to(m)
 
-            for _, row in orders.iterrows():
-                if row['Assigned_Tech'] == 'Unassigned': continue
-                city_raw = str(row.get('City', '')).upper().strip()
-                coords = next((c for k, c in CITY_COORDS.items() if k in city_raw or city_raw in k), (30.0444, 31.2357))
-                folium.Marker(
-                    coords,
-                    popup=f"Stop #{row['Stop_Sequence']} | {row['Assigned_Tech']}<br>WO: {row.get('Work_Order')}",
-                    icon=folium.Icon(color="red" if row.get('Is_Emergency') else "blue", icon="wrench", prefix="fa")
-                ).add_to(m)
-            st_folium(m, width=1200, height=500)
+            unique_techs = [t for t in orders['Assigned_Tech'].unique() if t != 'Unassigned']
+            tech_color_map = {tech: TECH_ROUTE_COLORS[i % len(TECH_ROUTE_COLORS)] for i, tech in enumerate(unique_techs)}
+
+            for tech_name in unique_techs:
+                tech_orders = orders[orders['Assigned_Tech'] == tech_name].sort_values(by='Stop_Sequence')
+                route_coords = []
+                
+                tech_row = tech_df[tech_df['name'] == tech_name]
+                if not tech_row.empty:
+                    base_coords = get_effective_coords(tech_row.iloc[0])
+                    route_coords.append(base_coords)
+
+                for _, row in tech_orders.iterrows():
+                    city_raw = str(row.get('City', '')).upper().strip()
+                    coords = next((c for k, c in CITY_COORDS.items() if k in city_raw or city_raw in k), (30.0444, 31.2357))
+                    route_coords.append(coords)
+                    
+                    folium.Marker(
+                        coords,
+                        popup=f"<b>Stop #{row['Stop_Sequence']}</b><br>Tech: {row['Assigned_Tech']}<br>WO: {row.get('Work_Order')}<br>Customer: {row.get('Customer_Name')}",
+                        tooltip=f"Stop #{row['Stop_Sequence']} ({row['Assigned_Tech']})",
+                        icon=folium.Icon(color=tech_color_map[tech_name], icon="wrench", prefix="fa")
+                    ).add_to(m)
+
+                if len(route_coords) > 1:
+                    folium.PolyLine(route_coords, color=tech_color_map[tech_name], weight=4, opacity=0.8, tooltip=f"Route for {tech_name}").add_to(m)
+
+            st_folium(m, width=1200, height=550)
         else:
             st.info("Please upload orders and run the AI Dispatch Engine in Tab 1 first.")
 
@@ -379,16 +482,24 @@ if app_mode == "🏢 Dispatch Command Center":
             st.subheader("📍 Live Fleet Locations")
             m_live = folium.Map(location=MIRAGE_CENTER_COORDS, zoom_start=11)
             
+            # SAFE DEFENSIVE RETRIEVAL WITH .get()
             for _, tech in tech_df.iterrows():
-                if tech['status'] != 'Active': continue
-                status_color = "green" if tech['active_status'] == 'On-Site' else ("blue" if tech['active_status'] == 'In Transit' else "gray")
+                if str(tech.get('status', 'Active')) != 'Active': continue
+                
+                active_status = str(tech.get('active_status', 'Idle'))
+                status_color = "green" if active_status == 'On-Site' else ("blue" if active_status == 'In Transit' else "gray")
+                lat = float(tech.get('last_lat', 30.0074))
+                lng = float(tech.get('last_lng', 31.4312))
+                ping = str(tech.get('last_ping', 'Just Now'))
+                name = str(tech.get('name', 'Technician'))
+                
                 folium.Marker(
-                    [tech['last_lat'], tech['last_lng']],
-                    popup=f"<b>{tech['name']}</b><br>Status: {tech['active_status']}<br>Last Ping: {tech['last_ping']}",
-                    tooltip=f"{tech['name']} ({tech['active_status']})",
+                    [lat, lng],
+                    popup=f"<b>{name}</b><br>Status: {active_status}<br>Last Ping: {ping}",
+                    tooltip=f"{name} ({active_status})",
                     icon=folium.Icon(color=status_color, icon="user", prefix="fa")
                 ).add_to(m_live)
-            st_folium(m_live, width=700, height=450)
+            st_folium(m_live, width=700, height=480)
 
         with c_alerts:
             st.subheader("🚨 Send Forced Alert or Ping")
@@ -397,13 +508,15 @@ if app_mode == "🏢 Dispatch Command Center":
             
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                if st.button("🚨 Send Forced Alert"):
+                if st.button("🚨 Send Forced Alert", type="primary"):
                     if alert_msg:
                         send_alert(target_tech, alert_msg)
                         st.success(f"Alert transmitted to {target_tech}!")
+                    else:
+                        st.warning("Please enter a message.")
             with col_b2:
                 if st.button("⚡ Ping GPS Location"):
-                    st.info(f"High-accuracy location request sent to {target_tech}!")
+                    st.info(f"High-accuracy location ping sent to {target_tech}!")
 
             st.markdown("---")
             st.subheader("📥 Live Tech Replies & Acknowledgments")
@@ -417,8 +530,10 @@ if app_mode == "🏢 Dispatch Command Center":
                             st.success(f"**Tech Reply:** {a['tech_reply']} (at {a['reply_time']})")
                         else:
                             st.warning("Awaiting technician interaction on mobile screen...")
+            else:
+                st.caption("No alerts logged today.")
 
-    # TAB 4: ANALYTICS
+    # TAB 4: FLEET PERFORMANCE & COSTING
     with nav4:
         st.header("📊 Master Fleet Analytics & Net Margins")
         if 'tracker' in st.session_state:
@@ -427,53 +542,94 @@ if app_mode == "🏢 Dispatch Command Center":
             rows = []
             for name, info in tr.items():
                 fuel_cost = info['total_dist_km'] * fr
+                net_margin = info['projected_revenue'] - fuel_cost
                 rows.append({
                     "Technician": name,
-                    "Jobs": len(info['assigned_jobs']),
+                    "Jobs Assigned": len(info['assigned_jobs']),
                     "Capacity": info['capacity'],
                     "Travel (KM)": round(info['total_dist_km'], 1),
+                    "Work Time (Hrs)": round(info['total_work_min'] / 60.0, 1),
                     "Revenue (EGP)": info['projected_revenue'],
                     "Est. Fuel Cost": round(fuel_cost, 1),
-                    "Net Margin": round(info['projected_revenue'] - fuel_cost, 1)
+                    "Net Margin (EGP)": round(net_margin, 1)
                 })
-            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+            df_perf = pd.DataFrame(rows)
+            st.dataframe(df_perf, use_container_width=True)
 
-    # TAB 5: CANCELLATIONS
+            c_a1, c_a2 = st.columns(2)
+            with c_a1:
+                st.subheader("💰 Projected Revenue by Technician")
+                st.bar_chart(df_perf.set_index("Technician")["Revenue (EGP)"])
+            with c_a2:
+                st.subheader("🚗 Total Distance Traveled (KM)")
+                st.bar_chart(df_perf.set_index("Technician")["Travel (KM)"])
+        else:
+            st.info("Run the AI Dispatch Engine in Tab 1 to calculate real-time fleet analytics.")
+
+    # TAB 5: CANCELLATIONS & POSTPONEMENTS LEDGER
     with nav5:
-        st.header("🚫 Cancelled & Postponed Work Orders")
+        st.header("🚫 Cancelled & Postponed Work Orders Ledger")
         if 'cancelled_postponed' in st.session_state:
-            st.dataframe(st.session_state['cancelled_postponed'], use_container_width=True)
+            df_canc = st.session_state['cancelled_postponed']
+            if not df_canc.empty:
+                st.warning(f"Found {len(df_canc)} cancelled or postponed orders.")
+                st.dataframe(df_canc, use_container_width=True)
+            else:
+                st.success("No cancelled or postponed orders found in the uploaded batch!")
+        else:
+            st.info("Upload orders in Tab 1 to view cancellations.")
 
-    # TAB 6: DB EDITING
+    # TAB 6: TECHNICIAN DATABASE MANAGER
     with nav6:
-        st.header("⚙️ Technician Master Database Editor")
-        edited = st.data_editor(tech_df, use_container_width=True)
-        if st.button("💾 Save Database Changes"):
-            save_tech_df(edited)
-            st.success("Technician database successfully updated!")
+        st.header("⚙️ Technician Master Database Manager")
+        st.caption("Add, edit, or modify technician profiles, home bases, capacities, and active statuses.")
+        
+        edited = st.data_editor(tech_df, use_container_width=True, num_rows="dynamic")
+        
+        c_db1, c_db2 = st.columns(2)
+        with c_db1:
+            if st.button("💾 Save Database Changes", type="primary"):
+                save_tech_df(edited)
+                st.success("Technician database successfully saved to disk!")
+                st.rerun()
+        with c_db2:
+            if st.button("🔄 Reset to Default Technicians"):
+                with sqlite3.connect("dispatch_system.db") as conn:
+                    conn.execute("DROP TABLE IF EXISTS technicians")
+                init_db()
+                st.success("Database reset to defaults!")
+                st.rerun()
 
 # ===================================================================
-# MODE 2: TECHNICIAN MOBILE PORTAL (SIMULATOR & BROWSER INTERFACE)
+# MODE 2: TECHNICIAN MOBILE PORTAL
 # ===================================================================
 else:
     st.title("📱 Technician Mobile Web Portal")
-    active_tech = st.selectbox("Simulate / Active Technician:", tech_df['name'].tolist())
+    
+    tech_names = tech_df['name'].tolist() if not tech_df.empty else ["Default Tech"]
+    active_tech = st.selectbox("Simulate Active Technician Mobile App:", tech_names)
     
     st.info("📍 Live GPS Signal Active: Transmitting coordinates to Command Center every 2 minutes.")
     
-    # Check for active pending alerts
     alerts_df = get_alerts()
-    pending = alerts_df[(alerts_df['tech_name'] == active_tech) & (alerts_df['status'] == 'PENDING')]
+    pending = pd.DataFrame()
+    if not alerts_df.empty and 'tech_name' in alerts_df.columns and 'status' in alerts_df.columns:
+        pending = alerts_df[(alerts_df['tech_name'] == active_tech) & (alerts_df['status'] == 'PENDING')]
 
     if not pending.empty:
         current_alert = pending.iloc[0]
         st.error("🚨 **URGENT DISPATCH NOTICE (SCREEN LOCKED)**")
-        st.warning(f"**Message from Dispatch:**\n\n{current_alert['message']}")
+        st.warning("Message from Dispatch: " + str(current_alert.get('message', '')))
         
         st.markdown("---")
         st.subheader("💬 Reply to Dispatch")
         
-        quick_reply = st.radio("Quick Options:", ["🟢 Accepted & Moving Now", "🟡 Delayed by Traffic (15-20 mins)", "🔴 Need Call Back / Emergency", "Custom Typed Response"])
+        quick_reply = st.radio("Quick Options:", [
+            "🟢 Accepted & Moving Now", 
+            "🟡 Delayed by Traffic (15-20 mins)", 
+            "🔴 Need Call Back / Emergency", 
+            "Custom Typed Response"
+        ])
         
         custom_txt = ""
         if quick_reply == "Custom Typed Response":
@@ -490,6 +646,9 @@ else:
         st.subheader("📋 Your Assigned Route Today")
         if 'active_orders' in st.session_state:
             my_jobs = st.session_state['active_orders'][st.session_state['active_orders']['Assigned_Tech'] == active_tech]
-            st.dataframe(my_jobs[['Stop_Sequence', 'Work_Order', 'Brand', 'Customer_Name', 'Customer_Phone', 'Address', 'Time_Slot']], use_container_width=True)
+            if not my_jobs.empty:
+                st.dataframe(my_jobs[['Stop_Sequence', 'Work_Order', 'Brand', 'Customer_Name', 'Customer_Phone', 'Address', 'Time_Slot', 'Est_Duration_Min', 'Est_Travel_KM']], use_container_width=True)
+            else:
+                st.info("You have no work orders assigned in the current schedule.")
         else:
             st.info("No active dispatch schedule published for today yet.")
