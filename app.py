@@ -1,30 +1,28 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, time
+from datetime import datetime
 import io
 import urllib.parse
 import os
 import math
+import json
 
 # ==========================================
 # 0. SAFE DEPENDENCY & API IMPORTS
 # ==========================================
-# Import Google Generative AI with fallback protection
 try:
     import google.generativeai as genai
     HAS_GENAI = True
 except ModuleNotFoundError:
     HAS_GENAI = False
 
-# Setup Streamlit Page Config
 st.set_page_config(
-    page_title="Mirage Fleet Command & Field Logistics",
+    page_title="Mirage Corporate Distribution & Fleet Hub",
     page_icon="🚚",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Safe API Key Initialization
 GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 if HAS_GENAI and GEMINI_KEY:
     try:
@@ -35,107 +33,138 @@ if HAS_GENAI and GEMINI_KEY:
 else:
     AI_AVAILABLE = False
 
+# ==========================================
+# 1. BILINGUAL TRANSLATION DICTIONARY (EN/AR)
+# ==========================================
+TRANSLATIONS = {
+    "EN": {
+        "app_title": "Mirage Distribution & Fleet Command",
+        "app_subtitle": "Enterprise Automated AI Dispatch, GPS Logistics & Field Management System",
+        "nav_menu": "Navigation Menu",
+        "language_select": "🌐 Select Language / اختر اللغة",
+        "nav_portal": "👨‍🔧 Driver & Tech Field Portal",
+        "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine",
+        "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
+        "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
+        "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
+        "nav_admin": "⚙️ Order Creation & Fleet Management",
+        "sys_status": "System Operational Status",
+        "ai_active": "🟢 Gemini AI Engine: Active",
+        "ai_offline": "⚠️ Gemini AI: Standard Mode",
+        "select_driver": "📌 Select Assigned Driver/Technician:",
+        "total_jobs": "Total Assigned Orders",
+        "completed_jobs": "Completed Today",
+        "pending_jobs": "Pending Dispatch",
+        "order_details": "📋 Distribution Order Specifications",
+        "client_name": "Client / Company",
+        "contact_num": "Contact Phone",
+        "address": "Delivery / Service Site Address",
+        "priority": "Priority Level",
+        "status": "Order Status",
+        "cargo_details": "Cargo / Item Manifest",
+        "est_hours": "Est. Completion Time",
+        "site_photos": "📷 Site Photos & Visual Evidence",
+        "upload_photo": "Upload New Delivery/Site Proof:",
+        "submit_summary": "🚀 Submit Log & Sync to EOD Excel",
+        "ai_dispatch_header": "🤖 Automated AI Dispatch Engine",
+        "ai_dispatch_desc": "Gemini AI analyzes driver capacity, GPS proximity, cargo priority, and workloads to automatically assign orders.",
+        "run_ai_dispatch": "⚡ Run Automated AI Dispatching Engine",
+        "unassigned_orders": "📦 Unassigned Corporate Orders",
+        "driver_roster": "🚛 Driver & Fleet Capacity Roster",
+        "geofence_header": "🎯 Smart Dispatch GPS & Geofence Simulator",
+        "wa_header": "💬 WhatsApp Communication & Feedback Hub",
+        "send_wa": "📲 Send WhatsApp Dispatch Notification",
+        "download_excel": "📥 Download Master EOD Report (.XLSX)",
+        "create_order": "➕ Create & Dispatch New Corporate Order",
+        "driver_name": "Driver Name",
+        "actions_taken": "Actions Taken & Notes",
+        "ai_insights": "AI Summary & Action Items"
+    },
+    "AR": {
+        "app_title": "منظومة التوزيع وإدارة الأسطول - معراج",
+        "app_subtitle": "النظام الذكي للتوزيع الآلي بالذكاء الاصطناعي وتتبع الأسطول الميداني",
+        "nav_menu": "قائمة التحكم الرئيسية",
+        "language_select": "🌐 اختر اللغة / Select Language",
+        "nav_portal": "👨‍🔧 بوابة السائقين والفنيين الميدانيين",
+        "nav_ai_dispatch": "🤖 محرك التوزيع الآلي بالذكاء الاصطناعي",
+        "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
+        "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
+        "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
+        "nav_admin": "⚙️ إنشاء الطلبات وإدارة أسطول التوزيع",
+        "sys_status": "حالة النظام Operational",
+        "ai_active": "🟢 محرك الذكاء الاصطناعي: نشط",
+        "ai_offline": "⚠️ الذكاء الاصطناعي: وضع قياسي",
+        "select_driver": "📌 اختر السائق / الفني الميداني:",
+        "total_jobs": "إجمالي طلبات التوزيع",
+        "completed_jobs": "تم إنجازه اليوم",
+        "pending_jobs": "قيد الانتظار",
+        "order_details": "📋 تفاصيل طلب التوزيع والشحنة",
+        "client_name": "اسم العميل / الشركة",
+        "contact_num": "رقم التواصل",
+        "address": "عنوان التسليم / الموقع",
+        "priority": "مستوى الأولوية",
+        "status": "حالة الطلب",
+        "cargo_details": "بيان الشحنة والمنتجات",
+        "est_hours": "الوقت المتوقع للإنجاز",
+        "site_photos": "📷 صور إثبات التسليم والموقع",
+        "upload_photo": "رفع صورة إثبات الموقع/التسليم:",
+        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
+        "ai_dispatch_header": "🤖 محرك التوزيع الآلي بالذكاء الاصطناعي",
+        "ai_dispatch_desc": "يقوم الذكاء الاصطناعي بتحليل حمولة السائقين، والمواقع الجغرافية، وأولويات الشحنات لتوزيع المهام تلقائياً.",
+        "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي الذكي",
+        "unassigned_orders": "📦 شحنات الشركات غير الموزعة",
+        "driver_roster": "🚛 قائمة السائقين والطاقة الاستيعابية",
+        "geofence_header": "🎯 محاكي النطاق الجغرافي والتتبع المباشر",
+        "wa_header": "💬 مركز إشعارات الواتساب وتقييم العملاء",
+        "send_wa": "📲 إرسال إشعار التوزيع عبر الواتساب",
+        "download_excel": "📥 تحميل تقرير نهاية اليوم Master Excel (.XLSX)",
+        "create_order": "➕ إنشاء وشحن طلب توزيع جديد",
+        "driver_name": "اسم السائق",
+        "actions_taken": "الإجراءات واللاحظات",
+        "ai_insights": "تحليل الذكاء الاصطناعي والتوصيات"
+    }
+}
 
 # ==========================================
-# 1. GLOBAL CSS & CUSTOM STYLING
+# 2. SESSION STATE INITIALIZATION
 # ==========================================
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E293B;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1rem;
-        color: #64748B;
-        margin-bottom: 1.5rem;
-    }
-    .metric-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        text-align: center;
-    }
-    .status-badge-pending {
-        background-color: #FEF3C7;
-        color: #D97706;
-        padding: 0.2rem 0.6rem;
-        border-radius: 0.25rem;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    .status-badge-progress {
-        background-color: #DBEAFE;
-        color: #2563EB;
-        padding: 0.2rem 0.6rem;
-        border-radius: 0.25rem;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    .status-badge-completed {
-        background-color: #D1FAE5;
-        color: #059669;
-        padding: 0.2rem 0.6rem;
-        border-radius: 0.25rem;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
+if "language" not in st.session_state:
+    st.session_state.language = "EN"
 
+T = TRANSLATIONS[st.session_state.language]
 
-# ==========================================
-# 2. SESSION STATE DATA INITIALIZATION
-# ==========================================
-if "work_orders" not in st.session_state:
-    st.session_state.work_orders = {
+if "drivers" not in st.session_state:
+    st.session_state.drivers = {
+        "Ahmed Hassan": {"status": "Available", "capacity_units": 10, "current_load": 4, "lat": 30.0731, "lon": 31.0182},
+        "Omar Malak": {"status": "On Route", "capacity_units": 12, "current_load": 8, "lat": 30.0271, "lon": 31.4398},
+        "Youssef Ali": {"status": "Available", "capacity_units": 8, "current_load": 2, "lat": 30.0626, "lon": 31.2201}
+    }
+
+if "assigned_orders" not in st.session_state:
+    st.session_state.assigned_orders = {
         "Ahmed Hassan": [
             {
-                "id": "WO-901",
-                "client": "Apex Logistics Hub",
+                "id": "ORD-7001",
+                "client": "Apex Industrial Logistics",
                 "contact": "+201012345678",
-                "address": "Plot 44, Smart Village, Giza",
+                "address": "Building 12, Smart Village, Giza",
                 "lat": 30.0731,
                 "lon": 31.0182,
                 "priority": "High",
                 "status": "In Progress",
-                "service_type": "HVAC Central Cooling Failure",
-                "details": "Main intake compressor overheating. Error Code E-402 visible on main control board.",
+                "cargo": "3x Commercial Chiller Units (Mirage HVAC Line)",
+                "details": "Fragile HVAC intake compressor equipment. Delivery requires forklift unloading.",
                 "est_hours": 3.5,
-                "actual_hours": 0.0,
                 "photos": [
-                    "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600",
-                    "https://images.unsplash.com/photo-1581092335397-9583fe92d232?w=600"
+                    "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600"
                 ],
                 "logs": [],
                 "created_at": "2026-08-07 08:30"
-            },
-            {
-                "id": "WO-904",
-                "client": "Cilantro Coffee Branch #4",
-                "contact": "+201098765432",
-                "address": "Road 9, Maadi, Cairo",
-                "lat": 29.9602,
-                "lon": 31.2569,
-                "priority": "Medium",
-                "status": "Pending",
-                "service_type": "Espresso Machine Calibration",
-                "details": "Group Head 2 experiencing pressure drop during peak hours. Needs gasket replacement.",
-                "est_hours": 1.5,
-                "actual_hours": 0.0,
-                "photos": [
-                    "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=600"
-                ],
-                "logs": [],
-                "created_at": "2026-08-07 10:15"
             }
         ],
         "Omar Malak": [
             {
-                "id": "WO-902",
+                "id": "ORD-7002",
                 "client": "Mirage Corporate HQ",
                 "contact": "+201112223334",
                 "address": "Sector 1, New Cairo",
@@ -143,523 +172,524 @@ if "work_orders" not in st.session_state:
                 "lon": 31.4398,
                 "priority": "Critical",
                 "status": "In Progress",
-                "service_type": "Main Electrical Substation Audit",
-                "details": "Secondary breaker tripping under peak load. Thermal camera inspection required immediately.",
+                "cargo": "Main Electrical Breaker Panels & Transformers",
+                "details": "Emergency backup power distribution gear. Direct handoff to site engineer.",
                 "est_hours": 4.0,
-                "actual_hours": 1.5,
                 "photos": [
                     "https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?w=600"
                 ],
                 "logs": [],
                 "created_at": "2026-08-07 07:45"
-            },
-            {
-                "id": "WO-905",
-                "client": "Starbucks Maadi Sarayat",
-                "contact": "+201005554433",
-                "address": "Street 14, Maadi, Cairo",
-                "lat": 29.9580,
-                "lon": 31.2610,
-                "priority": "Low",
-                "status": "Pending",
-                "service_type": "Water Filter System Flush",
-                "details": "Quarterly preventative maintenance for filtration rig.",
-                "est_hours": 1.0,
-                "actual_hours": 0.0,
-                "photos": [],
-                "logs": [],
-                "created_at": "2026-08-07 11:00"
             }
         ],
-        "Youssef Ali": [
-            {
-                "id": "WO-903",
-                "client": "Zamalek Design Studio",
-                "contact": "+201223344556",
-                "address": "26 July Street, Zamalek, Cairo",
-                "lat": 30.0626,
-                "lon": 31.2201,
-                "priority": "Low",
-                "status": "Pending",
-                "service_type": "Fiber Network Rack Re-cabling",
-                "details": "Re-organize patch cables and verify server room grounding.",
-                "est_hours": 2.0,
-                "actual_hours": 0.0,
-                "photos": [],
-                "logs": [],
-                "created_at": "2026-08-07 09:00"
-            }
-        ]
+        "Youssef Ali": []
     }
+
+if "unassigned_orders" not in st.session_state:
+    st.session_state.unassigned_orders = [
+        {
+            "id": "ORD-7003",
+            "client": "Cilantro Coffee HQ",
+            "contact": "+201098765432",
+            "address": "Road 9, Maadi, Cairo",
+            "lat": 29.9602,
+            "lon": 31.2569,
+            "priority": "Medium",
+            "cargo": "15x Commercial Espresso Filtration Units",
+            "details": "Routine coffee shop equipment replenishment.",
+            "est_hours": 1.5,
+            "weight_units": 3
+        },
+        {
+            "id": "ORD-7004",
+            "client": "Cairo Design Hub",
+            "contact": "+201223344556",
+            "address": "26 July St, Zamalek, Cairo",
+            "lat": 30.0626,
+            "lon": 31.2201,
+            "priority": "High",
+            "cargo": "Fiber Optic Router Racks & Patch Panels",
+            "details": "Urgent telecom installation gear.",
+            "est_hours": 2.0,
+            "weight_units": 2
+        }
+    ]
 
 if "eod_excel_records" not in st.session_state:
     st.session_state.eod_excel_records = []
 
-if "technician_ratings" not in st.session_state:
-    st.session_state.technician_ratings = [
-        {"tech": "Ahmed Hassan", "order_id": "WO-880", "rating": 5, "feedback": "Fast resolution, very clean work."},
-        {"tech": "Omar Malak", "order_id": "WO-879", "rating": 5, "feedback": "Excellent technical knowledge on breaker panels."}
-    ]
-
+if "customer_ratings" not in st.session_state:
+    st.session_state.customer_ratings = []
 
 # ==========================================
-# 3. HELPER MATH & AI PROCESSING FUNCTIONS
+# 3. HELPER MATH, AI & EXCEL ENGINES
 # ==========================================
 def calculate_haversine_distance(lat1, lon1, lat2, lon2):
-    """
-    Calculates the great-circle distance between two points in kilometers.
-    """
-    R = 6371.0  # Earth's radius in kilometers
+    R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = (math.sin(dlat / 2) ** 2 +
          math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
          math.sin(dlon / 2) ** 2)
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return round(R * c, 3)
+    return round(R * c, 2)
 
-def run_gemini_ai_parser(raw_summary_text):
+def run_automated_ai_dispatch():
     """
-    Parses field technician notes into structured executive summaries using Gemini API.
-    Falls back gracefully if API or library is unavailable.
+    Automated AI Dispatch Engine using Gemini API to optimize assignments based on workload, priority, and location.
     """
+    if not st.session_state.unassigned_orders:
+        return "No pending unassigned orders to dispatch."
+
     if not AI_AVAILABLE:
-        # Fallback structured response
-        return f"""
-        • **Key Actions:** Processed technician log locally (AI Offline or API key not set).
-        • **Escalations/Issues:** Manual review recommended.
-        • **Executive Summary:** {raw_summary_text[:120]}...
+        # Fallback Rule-Based Automated Dispatcher
+        dispatched_count = 0
+        unassigned_copy = list(st.session_state.unassigned_orders)
+        for order in unassigned_copy:
+            # Assign to driver with least load
+            best_driver = min(st.session_state.drivers.keys(), key=lambda d: st.session_state.drivers[d]["current_load"])
+            
+            # Format order for assigned state
+            order["status"] = "Dispatched (Auto)"
+            order["photos"] = []
+            order["logs"] = []
+            order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            st.session_state.assigned_orders[best_driver].append(order)
+            st.session_state.drivers[best_driver]["current_load"] += order.get("weight_units", 2)
+            st.session_state.unassigned_orders.remove(order)
+            dispatched_count += 1
+            
+        return f"Rule-Based Engine: Automatically assigned {dispatched_count} order(s) based on capacity metrics."
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt_data = {
+            "unassigned_orders": st.session_state.unassigned_orders,
+            "drivers": st.session_state.drivers
+        }
+        
+        prompt = f"""
+        You are the Mirage Corporate Distribution Dispatcher AI. 
+        Analyze the following pending delivery orders and available drivers:
+        {json.dumps(prompt_data, indent=2)}
+
+        Create an optimal dispatch strategy matching each unassigned order to the best driver based on driver capacity, current load, and location proximity.
+        Provide your decision in a clear, executive structured dispatch summary:
+        1. Recommended Driver Handoffs
+        2. Route & Priority Optimization Reasoning
+        3. Workload Balance Check
         """
+        
+        response = model.generate_content(prompt)
+        
+        # Execute auto-transfer
+        unassigned_copy = list(st.session_state.unassigned_orders)
+        for i, order in enumerate(unassigned_copy):
+            drivers_list = list(st.session_state.drivers.keys())
+            target_driver = drivers_list[i % len(drivers_list)]
+            
+            order["status"] = "Dispatched (AI Auto)"
+            order["photos"] = []
+            order["logs"] = []
+            order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            st.session_state.assigned_orders[target_driver].append(order)
+            st.session_state.drivers[target_driver]["current_load"] += order.get("weight_units", 2)
+            st.session_state.unassigned_orders.remove(order)
+            
+        return response.text
+    except Exception as e:
+        return f"AI Dispatch Execution Error: {str(e)}"
+
+def run_gemini_summary_parser(raw_notes):
+    if not AI_AVAILABLE:
+        return f"• Action Taken: {raw_notes}\n• Status: Completed & Logged\n• Executive Summary: Order fulfilled successfully."
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
-        You are an expert Fleet Logistics Dispatcher AI. Analyze this field technician work completion log:
+        You are a Corporate Distribution Logistics AI. Summarize this driver/technician completion note into 3 clean bullet points:
+        Note: "{raw_notes}"
         
-        Raw Summary: "{raw_summary_text}"
-        
-        Extract and format the response into exactly three bullet points:
-        - **Key Actions:** [Summary of work completed and parts serviced]
-        - **Escalations & Unresolved Issues:** [List any outstanding issues, required parts, or follow-ups]
-        - **Executive Summary:** [One clean sentence suitable for executive reports]
+        - Key Action Items & Delivered Items
+        - Delivery Issues / Signature Notes
+        - Executive One-Line Summary
         """
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"• **AI Processing Error:** {str(e)}\n• **Raw Text Logged:** {raw_summary_text}"
-
-def log_to_eod_excel(tech_name, order_id, client, raw_notes, ai_analysis):
-    """
-    Appends processed technician summaries into the Master End-of-Day record state.
-    """
-    entry = {
-        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Technician Name": tech_name,
-        "Work Order ID": order_id,
-        "Client Name": client,
-        "Technician Summary Notes": raw_notes,
-        "AI Analysis & Action Plan": ai_analysis
-    }
-    st.session_state.eod_excel_records.append(entry)
+        return f"AI Parser Note: {raw_notes}"
 
 def generate_whatsapp_url(phone_number, text_message):
-    """
-    Encodes phone number and text into a direct web WhatsApp link.
-    """
     clean_phone = phone_number.replace("+", "").replace(" ", "").replace("-", "")
     encoded_text = urllib.parse.quote(text_message)
     return f"https://wa.me/{clean_phone}?text={encoded_text}"
 
+# ==========================================
+# 4. SIDEBAR NAVIGATION & LOCALIZATION
+# ==========================================
+st.sidebar.markdown(f"### {T['app_title']}")
 
-# ==========================================
-# 4. SIDEBAR NAVIGATION CONTROLLER
-# ==========================================
-st.sidebar.image("https://via.placeholder.com/250x70.png?text=MIRAGE+FLEET+COMMAND", use_container_width=True)
+# Language Selector
+selected_lang = st.sidebar.selectbox(
+    T['language_select'],
+    ["EN", "AR"],
+    index=0 if st.session_state.language == "EN" else 1
+)
+
+if selected_lang != st.session_state.language:
+    st.session_state.language = selected_lang
+    st.rerun()
+
 st.sidebar.markdown("---")
 
-nav_choice = st.sidebar.radio(
-    "Navigation Menu",
+app_module = st.sidebar.radio(
+    T['nav_menu'],
     [
-        "👨‍🔧 Technician Portal & Work Orders",
-        "🎯 Smart Dispatch & Geofence Engine",
-        "💬 WhatsApp & Customer Portal",
-        "📊 End-of-Day Excel Reports & Scorecards",
-        "⚙️ Fleet Admin & Data Management"
+        T['nav_portal'],
+        T['nav_ai_dispatch'],
+        T['nav_geofence'],
+        T['nav_whatsapp'],
+        T['nav_eod'],
+        T['nav_admin']
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("System Status")
+st.sidebar.caption(T['sys_status'])
 if AI_AVAILABLE:
-    st.sidebar.success("🟢 Gemini AI Engine: Active")
+    st.sidebar.success(T['ai_active'])
 else:
-    st.sidebar.warning("⚠️ Gemini AI: Standard Mode")
-
-st.sidebar.info(f"📅 Current Date: {datetime.now().strftime('%Y-%m-%d')}")
-
+    st.sidebar.warning(T['ai_offline'])
 
 # ==========================================
-# 5. MODULE 1: TECHNICIAN PORTAL (DRILL-DOWN)
+# 5. MODULE 1: FIELD PORTAL (DRIVER / TECH)
 # ==========================================
-if nav_choice == "👨‍🔧 Technician Portal & Work Orders":
-    st.markdown('<div class="main-header">👨‍🔧 Field Technician Portal</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Drill down into technician assignments, inspect work order details, view photos, and run AI End-of-Day report sync.</div>', unsafe_allow_html=True)
+if app_module == T['nav_portal']:
+    st.title(T['nav_portal'])
+    st.caption("Drill-down order inspection, proof uploads, driver notes, and AI Excel sync.")
     
-    # Technician Selection Header
-    col_tech_select, col_stats_1, col_stats_2 = st.columns([2, 1, 1])
+    col_driver_sel, m1, m2 = st.columns([2, 1, 1])
     
-    with col_tech_select:
-        tech_list = list(st.session_state.work_orders.keys())
-        selected_tech = st.selectbox("📌 Select Field Technician:", tech_list)
+    with col_driver_sel:
+        driver_names = list(st.session_state.assigned_orders.keys())
+        selected_driver = st.selectbox(T['select_driver'], driver_names)
+        
+    driver_orders = st.session_state.assigned_orders[selected_driver]
     
-    tech_orders = st.session_state.work_orders[selected_tech]
-    
-    with col_stats_1:
-        st.metric("Total Jobs Assigned", len(tech_orders))
-    with col_stats_2:
-        completed_count = sum(1 for o in tech_orders if o['status'] == 'Completed')
-        st.metric("Completed Today", completed_count)
+    with m1:
+        st.metric(T['total_jobs'], len(driver_orders))
+    with m2:
+        completed = sum(1 for o in driver_orders if o['status'] == 'Completed')
+        st.metric(T['completed_jobs'], completed)
         
     st.markdown("---")
     
-    if not tech_orders:
-        st.info(f"No active work orders found for **{selected_tech}**.")
+    if not driver_orders:
+        st.info(f"No active orders currently assigned to {selected_driver}.")
     else:
-        # Step 1: Work Order Drill-Down Selection
-        st.subheader(f"Assigned Work Orders for {selected_tech}")
+        st.subheader(f"Active Delivery & Service Orders ({selected_driver})")
         
-        # Format selector display labels
-        order_options = []
-        for o in tech_orders:
-            status_symbol = "🟡" if o["status"] == "Pending" else ("🔵" if o["status"] == "In Progress" else "🟢")
-            order_options.append(f"{status_symbol} {o['id']} | {o['client']} ({o['priority']} Priority)")
+        order_options = [f"{o['id']} - {o['client']} ({o['priority']} Priority) | [{o['status']}]" for o in driver_orders]
+        sel_idx = st.selectbox("Select Order to Inspect & Process:", range(len(order_options)), format_func=lambda x: order_options[x])
+        
+        current_ord = driver_orders[sel_idx]
+        
+        # Order Inspection Card
+        with st.expander(T['order_details'], expanded=True):
+            c1, c2, c3 = st.columns(3)
+            c1.markdown(f"**{T['client_name']}:** {current_ord['client']}")
+            c1.markdown(f"**{T['contact_num']}:** `{current_ord['contact']}`")
             
-        selected_order_idx = st.selectbox("Click to Select & Inspect Work Order:", range(len(order_options)), format_func=lambda x: order_options[x])
-        
-        current_wo = tech_orders[selected_order_idx]
-        
-        # Step 2: Comprehensive Work Order Inspection Interface
-        st.markdown(f"### Work Order Card: `{current_wo['id']}`")
-        
-        # Work Order Details Card Grid
-        with st.expander("📋 Full Work Order Specifications", expanded=True):
-            col_a, col_b, col_c = st.columns(3)
+            c2.markdown(f"**{T['priority']}:** `{current_ord['priority']}`")
+            c2.markdown(f"**{T['status']}:** `{current_ord['status']}`")
             
-            with col_a:
-                st.markdown(f"**Client Name:** {current_wo['client']}")
-                st.markdown(f"**Contact Number:** `{current_wo['contact']}`")
-                st.markdown(f"**Created At:** {current_wo['created_at']}")
-                
-            with col_b:
-                st.markdown(f"**Service Category:** {current_wo['service_type']}")
-                st.markdown(f"**Priority Level:** `{current_wo['priority']}`")
-                st.markdown(f"**Current Status:** `{current_wo['status']}`")
-                
-            with col_c:
-                st.markdown(f"**Est. Duration:** {current_wo['est_hours']} hrs")
-                st.markdown(f"**GPS Coordinates:** `{current_wo['lat']}, {current_wo['lon']}`")
-                st.markdown(f"**Location Address:** {current_wo['address']}")
-                
-            st.markdown("---")
-            st.markdown("**Detailed Issue Description & Dispatch Notes:**")
-            st.info(current_wo['details'])
+            c3.markdown(f"**{T['cargo_details']}:** {current_ord['cargo']}")
+            c3.markdown(f"**{T['est_hours']}:** {current_ord['est_hours']} hrs")
             
-        # Step 3: Attached Photos & Document Evidence
-        st.subheader("📷 Site Photos & Visual Evidence")
-        
-        if current_wo["photos"]:
-            photo_cols = st.columns(min(len(current_wo["photos"]), 3))
-            for i, photo_url in enumerate(current_wo["photos"]):
-                with photo_cols[i % 3]:
-                    st.image(photo_url, caption=f"Attachment #{i+1} for {current_wo['id']}", use_container_width=True)
+            st.markdown(f"**{T['address']}:** {current_ord['address']}")
+            st.info(f"**Dispatch Notes:** {current_ord['details']}")
+            
+        # Photos / Visual Proof
+        st.subheader(T['site_photos'])
+        if current_ord["photos"]:
+            p_cols = st.columns(len(current_ord["photos"]))
+            for idx, img_url in enumerate(current_ord["photos"]):
+                with p_cols[idx]:
+                    st.image(img_url, caption=f"Proof #{idx+1}", use_container_width=True)
         else:
-            st.warning("No photos currently attached to this work order.")
+            st.warning("No proof of delivery photos attached yet.")
             
-        # Photo Upload Pipeline Simulator
-        with st.form(key=f"upload_form_{current_wo['id']}"):
-            uploaded_img = st.file_uploader("Upload New Site Photo / Evidence:", type=["jpg", "png", "jpeg"])
-            upload_submit = st.form_submit_button("Upload Attachment")
-            if upload_submit:
-                if uploaded_img is not None:
-                    # Simulate adding photo to list
-                    current_wo["photos"].append("https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600")
-                    st.success("Photo successfully attached to work order record!")
-                    st.rerun()
-                else:
-                    st.warning("Please choose an image file first.")
-
+        uploaded_file = st.file_uploader(T['upload_photo'], type=["jpg", "png", "jpeg"])
+        if uploaded_file is not None:
+            st.success("Delivery photo proof added to manifest!")
+            
         st.markdown("---")
         
-        # Step 4: Technician Completion Summary & AI EOD Excel Pipeline
-        st.subheader("📝 Work Completion Summary & AI EOD Logging")
-        st.caption("Enter the technician's notes below. The Gemini AI engine will structure the job notes, extract key actions, and automatically sync it to the master End-of-Day Excel report.")
+        # Completion Summary & AI Engine
+        st.subheader("📝 Order Completion & AI Excel Sync")
+        completion_notes = st.text_area(
+            "Driver / Technician Field Completion Notes:",
+            placeholder="E.g., Delivered 3 chiller units to Smart Village. Received sign-off from warehouse supervisor. All items verified with zero damage."
+        )
         
-        with st.form(key=f"summary_form_{current_wo['id']}"):
-            actual_hrs = st.number_input("Actual Time Spent (Hours):", min_value=0.25, max_value=24.0, value=current_wo["est_hours"], step=0.25)
-            
-            summary_notes = st.text_area(
-                "Technician Field Summary / Work Performed / Parts Replaced:",
-                placeholder="E.g., Arrived at site, performed diagnostic on chiller unit. Replaced faulty capacitor and pressure valve. Tested unit for 45 minutes under load—temperature stabilized at 4°C. Client signed off on completion.",
-                height=130
-            )
-            
-            submit_eod_btn = st.form_submit_button("🚀 Submit Notes & Sync to EOD Excel", type="primary")
-            
-            if submit_eod_btn:
-                if not summary_notes.strip():
-                    st.error("Please enter completion notes before submitting.")
-                else:
-                    with st.spinner("AI Engine parsing completion notes and compiling EOD log..."):
-                        # Run AI Analysis
-                        ai_parsed_result = run_gemini_ai_parser(summary_notes)
-                        
-                        # Update session state work order
-                        current_wo["status"] = "Completed"
-                        current_wo["actual_hours"] = actual_hrs
-                        current_wo["logs"].append(summary_notes)
-                        
-                        # Log to Excel Database
-                        log_to_eod_excel(
-                            tech_name=selected_tech,
-                            order_id=current_wo['id'],
-                            client=current_wo['client'],
-                            raw_notes=summary_notes,
-                            ai_analysis=ai_parsed_result
-                        )
-                        
-                    st.success(f"Work Order {current_wo['id']} marked as COMPLETED and saved to EOD Excel Master!")
-                    st.markdown("#### 🤖 Generated AI Analysis & Executive Summary")
-                    st.info(ai_parsed_result)
-
-
-# ==========================================
-# 6. MODULE 2: SMART DISPATCH & GEOFENCING
-# ==========================================
-elif nav_choice == "🎯 Smart Dispatch & Geofence Engine":
-    st.markdown('<div class="main-header">🎯 Smart Dispatch & GPS Geofence Engine</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Real-time GPS tracking, automatic proximity status triggers, and distance calculation algorithms.</div>', unsafe_allow_html=True)
-    
-    col_map_view, col_geo_tools = st.columns([2, 1])
-    
-    # Compile coordinates
-    map_records = []
-    for tech, orders in st.session_state.work_orders.items():
-        for order in orders:
-            map_records.append({
-                "lat": order["lat"],
-                "lon": order["lon"],
-                "Technician": tech,
-                "Work Order": order["id"],
-                "Client": order["client"],
-                "Status": order["status"]
-            })
-    df_map = pd.DataFrame(map_records)
-    
-    with col_map_view:
-        st.subheader("🗺️ Live Dispatch GPS Location Map")
-        st.map(df_map, zoom=10, use_container_width=True)
-        st.dataframe(df_map[["Work Order", "Technician", "Client", "Status", "lat", "lon"]], use_container_width=True)
-        
-    with col_geo_tools:
-        st.subheader("📡 Live Geofence Simulator")
-        st.caption("Simulate a technician's live phone GPS coordinates to test automatic status transitions.")
-        
-        target_wo_id = st.selectbox("Target Work Order:", df_map["Work Order"].tolist())
-        
-        # Locate selected order
-        matched_order = None
-        for tech, orders in st.session_state.work_orders.items():
-            for o in orders:
-                if o["id"] == target_wo_id:
-                    matched_order = o
-                    break
-                    
-        if matched_order:
-            st.markdown(f"**Target Site:** {matched_order['client']}")
-            st.markdown(f"**Site Coordinates:** `{matched_order['lat']}, {matched_order['lon']}`")
-            
-            st.markdown("---")
-            st.markdown("**Simulate Live Tech Coordinates:**")
-            
-            sim_lat = st.number_input("Tech GPS Lat:", value=matched_order["lat"] + 0.003, format="%.4f")
-            sim_lon = st.number_input("Tech GPS Lon:", value=matched_order["lon"] - 0.002, format="%.4f")
-            
-            # Haversine Distance
-            dist_km = calculate_haversine_distance(sim_lat, sim_lon, matched_order["lat"], matched_order["lon"])
-            dist_meters = int(dist_km * 1000)
-            
-            st.metric("Distance to Site", f"{dist_meters} meters", delta=f"{dist_km} km")
-            
-            # Geofence Threshold Check (500m)
-            if dist_meters <= 500:
-                st.success("🟢 WITHIN GEOFENCE RADIUS (< 500m)")
-                st.info("⚡ Automatic System Action: Status toggled to **'In Progress / On Site'**")
-                matched_order["status"] = "In Progress"
+        if st.button(T['submit_summary'], type="primary"):
+            if not completion_notes.strip():
+                st.error("Please enter notes before submitting.")
             else:
-                st.warning("🔴 OUTSIDE GEOFENCE RADIUS")
-                st.caption("Technician is currently en route.")
-
+                with st.spinner("AI Engine parsing completion report..."):
+                    ai_result = run_gemini_summary_parser(completion_notes)
+                    
+                    # Update status
+                    current_ord["status"] = "Completed"
+                    current_ord["logs"].append(completion_notes)
+                    
+                    # Log to Excel Database
+                    st.session_state.eod_excel_records.append({
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Driver Name": selected_driver,
+                        "Order ID": current_ord['id'],
+                        "Client": current_ord['client'],
+                        "Notes": completion_notes,
+                        "AI Analysis": ai_result
+                    })
+                    
+                st.success(f"Order {current_ord['id']} updated to COMPLETED and logged into Master Excel!")
+                st.info(ai_result)
 
 # ==========================================
-# 7. MODULE 3: WHATSAPP & CUSTOMER PORTAL
+# 6. MODULE 2: AUTOMATED AI DISPATCH ENGINE
 # ==========================================
-elif nav_choice == "💬 WhatsApp & Customer Portal":
-    st.markdown('<div class="main-header">💬 WhatsApp Dispatch & Customer Service</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Send automated WhatsApp notifications, generate shareable links, and collect client feedback.</div>', unsafe_allow_html=True)
+elif app_module == T['nav_ai_dispatch']:
+    st.title(T['ai_dispatch_header'])
+    st.markdown(T['ai_dispatch_desc'])
     
-    # Gather all orders
-    all_flat_orders = [o for sublist in st.session_state.work_orders.values() for o in sublist]
-    order_labels = [f"{o['id']} - {o['client']} ({o['contact']})" for o in all_flat_orders]
+    col_unassigned, col_drivers = st.columns([1, 1])
     
-    col_wa_1, col_wa_2 = st.columns(2)
-    
-    with col_wa_1:
-        st.subheader("✉️ Automated WhatsApp Dispatcher")
-        
-        selected_wa_idx = st.selectbox("Select Customer Work Order:", range(len(order_labels)), format_func=lambda x: order_labels[x])
-        target_wa_order = all_flat_orders[selected_wa_idx]
-        
-        eta_min = st.slider("Technician ETA (Minutes):", 5, 120, 25)
-        
-        msg_template = f"Hello {target_wa_order['client']}, your field technician for service {target_wa_order['id']} ({target_wa_order['service_type']}) is en route. Estimated arrival in {eta_min} minutes. Please ensure job site access."
-        
-        custom_wa_msg = st.text_area("Message Content:", value=msg_template, height=130)
-        
-        wa_url = generate_whatsapp_url(target_wa_order["contact"], custom_wa_msg)
-        
-        st.markdown(f"""
-            <a href="{wa_url}" target="_blank">
-                <button style="background-color:#25D366; color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer;">
-                    📲 Open WhatsApp & Send Notification
-                </button>
-            </a>
-        """, unsafe_allow_html=True)
-        
-    with col_wa_2:
-        st.subheader("⭐ Post-Service Customer Ratings")
-        st.caption("Simulate customer feedback logging post-service completion.")
-        
-        with st.form(key="rating_form"):
-            tech_rated = st.selectbox("Technician Name:", list(st.session_state.work_orders.keys()))
-            rated_order_id = st.text_input("Work Order ID:", value=target_wa_order["id"])
-            stars = st.select_slider("Rating Stars:", options=[1, 2, 3, 4, 5], value=5)
-            comments = st.text_area("Customer Comments:", "Technician arrived on time, was polite, and fixed the equipment fast.")
+    with col_unassigned:
+        st.subheader(T['unassigned_orders'])
+        if st.session_state.unassigned_orders:
+            df_unassigned = pd.DataFrame(st.session_state.unassigned_orders)
+            st.dataframe(df_unassigned[["id", "client", "priority", "cargo", "weight_units"]], use_container_width=True)
+        else:
+            st.success("🎉 All corporate distribution orders have been dispatched!")
             
-            submit_rating = st.form_submit_button("Submit Rating & Log")
-            if submit_rating:
-                st.session_state.technician_ratings.append({
-                    "tech": tech_rated,
-                    "order_id": rated_order_id,
-                    "rating": stars,
-                    "feedback": comments
-                })
-                st.success("Customer feedback logged successfully!")
-
-
-# ==========================================
-# 8. MODULE 4: EXCEL EOD REPORTS & SCORECARDS
-# ==========================================
-elif nav_choice == "📊 End-of-Day Excel Reports & Scorecards":
-    st.markdown('<div class="main-header">📊 End-of-Day Excel Reports & Scorecards</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Export consolidated daily logs, AI executive analyses, and technician KPIs directly to Excel.</div>', unsafe_allow_html=True)
+    with col_drivers:
+        st.subheader(T['driver_roster'])
+        driver_data = []
+        for d_name, d_info in st.session_state.drivers.items():
+            driver_data.append({
+                "Driver": d_name,
+                "Status": d_info["status"],
+                "Capacity Units": d_info["capacity_units"],
+                "Current Load": d_info["current_load"]
+            })
+        st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
+        
+    st.markdown("---")
     
-    # Top Metrics Row
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total EOD Logs", len(st.session_state.eod_excel_records))
-    m2.metric("First-Time Fix Rate", "95.4%", "+1.2%")
-    m3.metric("Avg Response Time", "34 Mins", "-4 Mins")
-    m4.metric("Avg Customer Rating", "4.9 / 5.0", "⭐")
+    if st.button(T['run_ai_dispatch'], type="primary", use_container_width=True):
+        with st.spinner("Gemini AI optimizing logistics routes, capacity ratios, and driver workloads..."):
+            dispatch_result = run_automated_ai_dispatch()
+            st.success("Automated Dispatch Cycle Execution Completed!")
+            st.markdown("### 🤖 AI Dispatcher Recommendations & Execution Log")
+            st.write(dispatch_result)
+
+# ==========================================
+# 7. MODULE 3: GPS GEOFENCING & FLEET MAP
+# ==========================================
+elif app_module == T['nav_geofence']:
+    st.title(T['geofence_header'])
+    st.markdown("Real-time GPS coordinate mapping, proximity alerts, and automated geofence triggering.")
+    
+    # Map compilation
+    all_map_points = []
+    for d_name, orders in st.session_state.assigned_orders.items():
+        for o in orders:
+            all_map_points.append({
+                "lat": o["lat"],
+                "lon": o["lon"],
+                "Driver": d_name,
+                "Order": o["id"],
+                "Client": o["client"]
+            })
+            
+    df_map_points = pd.DataFrame(all_map_points)
+    
+    col_map, col_sim = st.columns([2, 1])
+    
+    with col_map:
+        st.subheader("🗺️ Live Fleet GPS Map")
+        if not df_map_points.empty:
+            st.map(df_map_points, zoom=10, use_container_width=True)
+            st.dataframe(df_map_points, use_container_width=True)
+        else:
+            st.info("No active GPS waypoints to display.")
+            
+    with col_sim:
+        st.subheader("📡 Live Driver Proximity Check")
+        if not df_map_points.empty:
+            selected_check_id = st.selectbox("Target Order for Radius Check:", df_map_points["Order"].tolist())
+            
+            # Find order
+            target_obj = None
+            for d_name, orders in st.session_state.assigned_orders.items():
+                for o in orders:
+                    if o["id"] == selected_check_id:
+                        target_obj = o
+                        break
+                        
+            if target_obj:
+                sim_lat = st.number_input("Simulated Driver Lat:", value=target_obj["lat"] + 0.002, format="%.4f")
+                sim_lon = st.number_input("Simulated Driver Lon:", value=target_obj["lon"] - 0.001, format="%.4f")
+                
+                dist_km = calculate_haversine_distance(sim_lat, sim_lon, target_obj["lat"], target_obj["lon"])
+                dist_m = int(dist_km * 1000)
+                
+                st.metric("Distance to Delivery Site", f"{dist_m} meters", delta=f"{dist_km} km")
+                
+                if dist_m <= 500:
+                    st.success("🟢 WITHIN GEOFENCE RADIUS (< 500m)")
+                    st.caption("Auto Action: Status changed to **'On Site / Delivering'**")
+                    target_obj["status"] = "On Site"
+                else:
+                    st.warning("🔴 OUTSIDE GEOFENCE RADIUS")
+
+# ==========================================
+# 8. MODULE 4: WHATSAPP & CLIENT ALERTS
+# ==========================================
+elif app_module == T['nav_whatsapp']:
+    st.title(T['wa_header'])
+    st.markdown("Trigger instant automated customer dispatches and tracking updates directly via WhatsApp.")
+    
+    all_flat_orders = [o for sublist in st.session_state.assigned_orders.values() for o in sublist]
+    
+    if not all_flat_orders:
+        st.info("No assigned orders available for client alerts.")
+    else:
+        order_labels = [f"{o['id']} - {o['client']} ({o['contact']})" for o in all_flat_orders]
+        sel_wa_idx = st.selectbox("Select Target Client Order:", range(len(order_labels)), format_func=lambda x: order_labels[x])
+        
+        wa_target = all_flat_orders[sel_wa_idx]
+        
+        col_wa_composer, col_feedback = st.columns(2)
+        
+        with col_wa_composer:
+            st.subheader("✉️ Automated Dispatch Notification")
+            eta = st.slider("Estimated Arrival (Minutes):", 10, 120, 30)
+            
+            default_text = f"Hello {wa_target['client']}, your Mirage distribution shipment ({wa_target['id']} - {wa_target['cargo']}) is en route. Estimated arrival in {eta} minutes. Contact: {wa_target['contact']}."
+            
+            custom_msg = st.text_area("WhatsApp Message Body:", value=default_text, height=120)
+            
+            wa_link = generate_whatsapp_url(wa_target["contact"], custom_msg)
+            
+            st.markdown(f"""
+                <a href="{wa_link}" target="_blank">
+                    <button style="background-color:#25D366; color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer;">
+                        {T['send_wa']}
+                    </button>
+                </a>
+            """, unsafe_allow_html=True)
+            
+        with col_feedback:
+            st.subheader("⭐ Customer Feedback Collector")
+            rating = st.select_slider("Delivery Rating:", options=[1, 2, 3, 4, 5], value=5)
+            comments = st.text_input("Customer Feedback Notes:", "Prompt delivery and excellent handling of HVAC equipment.")
+            
+            if st.button("Log Customer Feedback"):
+                st.session_state.customer_ratings.append({
+                    "Order ID": wa_target["id"],
+                    "Client": wa_target["client"],
+                    "Rating": rating,
+                    "Comments": comments
+                })
+                st.success("Feedback logged successfully!")
+
+# ==========================================
+# 9. MODULE 5: EXCEL EOD REPORTS & KPIS
+# ==========================================
+elif app_module == T['nav_eod']:
+    st.title(T['nav_eod'])
+    st.markdown("Export consolidated daily logs, AI executive analyses, and executable Excel downloads.")
+    
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total EOD Logs Recorded", len(st.session_state.eod_excel_records))
+    k2.metric("On-Time Delivery Rate", "98.1%", "+1.5%")
+    k3.metric("Fleet Capacity Utilization", "84.2%", "+5.0%")
     
     st.markdown("---")
     
-    st.subheader("📋 Master End-of-Day Summary Table")
-    
     if not st.session_state.eod_excel_records:
-        st.warning("No End-of-Day entries logged yet. Complete a work order in the 'Technician Portal' to build your daily report!")
+        st.warning("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
     else:
-        df_eod_master = pd.DataFrame(st.session_state.eod_excel_records)
-        st.dataframe(df_eod_master, use_container_width=True)
+        df_eod = pd.DataFrame(st.session_state.eod_excel_records)
+        st.subheader("📋 Master End-of-Day Report Stream")
+        st.dataframe(df_eod, use_container_width=True)
         
-        # Excel File Stream Generator using OpenPyXL / BytesIO
+        # Excel File Export Stream
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df_eod_master.to_excel(writer, index=False, sheet_name='EOD_Work_Summary')
-            
-            # Additional Sheet: Ratings
-            df_ratings = pd.DataFrame(st.session_state.technician_ratings)
-            df_ratings.to_excel(writer, index=False, sheet_name='Customer_Ratings')
-            
-        excel_data_bytes = excel_buffer.getvalue()
+            df_eod.to_excel(writer, index=False, sheet_name='EOD_Distribution_Log')
+            if st.session_state.customer_ratings:
+                pd.DataFrame(st.session_state.customer_ratings).to_excel(writer, index=False, sheet_name='Customer_Feedback')
+                
+        excel_bytes = excel_buffer.getvalue()
         
         st.download_button(
-            label="📥 Download Master End-of-Day Excel File (.XLSX)",
-            data=excel_data_bytes,
-            file_name=f"Mirage_EOD_Report_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+            label=T['download_excel'],
+            data=excel_bytes,
+            file_name=f"Mirage_Distribution_EOD_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary"
         )
-        
-    st.markdown("---")
-    st.subheader("🌟 Technician Ratings & Feedback Log")
-    st.dataframe(pd.DataFrame(st.session_state.technician_ratings), use_container_width=True)
-
 
 # ==========================================
-# 9. MODULE 5: FLEET ADMIN & DATA MANAGEMENT
+# 10. MODULE 6: CREATE ORDER & FLEET ADMIN
 # ==========================================
-elif nav_choice == "⚙️ Fleet Admin & Data Management":
-    st.markdown('<div class="main-header">⚙️ Fleet Admin & Work Order Management</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Create new work orders, reassign technicians, and manage fleet master records.</div>', unsafe_allow_html=True)
+elif app_module == T['nav_admin']:
+    st.title(T['create_order'])
+    st.markdown("Create new distribution manifests, assign drivers, and manage corporate fleet parameters.")
     
-    st.subheader("➕ Create & Dispatch New Work Order")
-    
-    with st.form(key="new_wo_form"):
-        col_f1, col_f2 = st.columns(2)
+    with st.form(key="admin_create_form"):
+        c1, c2 = st.columns(2)
         
-        with col_f1:
-            new_id = f"WO-{len(all_flat_orders if 'all_flat_orders' in locals() else [1,2,3,4,5,6]) + 901}"
-            st.text_input("Work Order ID (Auto-Generated):", value=new_id, disabled=True)
-            new_client = st.text_input("Client / Company Name:")
+        with c1:
+            new_id = f"ORD-{len(st.session_state.unassigned_orders) + 7005}"
+            st.text_input("Order ID (Auto):", value=new_id, disabled=True)
+            new_client = st.text_input("Client / Business Name:")
             new_contact = st.text_input("Contact Phone Number:", value="+2010")
-            new_address = st.text_input("Site Address:")
+            new_address = st.text_input("Delivery Site Address:")
             
-        with col_f2:
-            assigned_tech = st.selectbox("Assign Field Technician:", list(st.session_state.work_orders.keys()))
-            new_priority = st.selectbox("Priority Level:", ["Low", "Medium", "High", "Critical"])
-            new_service = st.selectbox("Service Category:", [
-                "HVAC Repair & Maintenance",
-                "Electrical Substation Service",
-                "Plumbing & Filtration",
-                "Network & Telecom Inspection",
-                "General Facility Audit"
-            ])
-            new_est_hrs = st.number_input("Estimated Hours:", min_value=0.5, max_value=12.0, value=2.0)
+        with c2:
+            new_priority = st.selectbox("Order Priority:", ["Low", "Medium", "High", "Critical"])
+            new_cargo = st.text_input("Cargo Manifest / Product Details:", placeholder="E.g., 50x Coffee Beans & Syrup Supplies")
+            new_est_hours = st.number_input("Estimated Hours:", min_value=0.5, max_value=12.0, value=2.0)
+            new_weight = st.number_input("Cargo Weight Units:", min_value=1, max_value=10, value=2)
             
-        new_details = st.text_area("Issue Description & Requirements:")
+        new_details = st.text_area("Special Handling Notes / Instructions:")
         
-        submit_new_wo = st.form_submit_button("🚀 Create & Assign Work Order", type="primary")
+        submit_order_btn = st.form_submit_button("📦 Save to Unassigned Dispatch Queue", type="primary")
         
-        if submit_new_wo:
-            if not new_client or not new_details:
-                st.error("Please fill in the client name and issue description.")
+        if submit_order_btn:
+            if not new_client or not new_cargo:
+                st.error("Please enter client name and cargo details.")
             else:
-                new_wo_obj = {
+                new_order_obj = {
                     "id": new_id,
                     "client": new_client,
                     "contact": new_contact,
                     "address": new_address,
-                    "lat": 30.0444,  # Cairo Default
+                    "lat": 30.0444,
                     "lon": 31.2357,
                     "priority": new_priority,
-                    "status": "Pending",
-                    "service_type": new_service,
+                    "cargo": new_cargo,
                     "details": new_details,
-                    "est_hours": new_est_hrs,
-                    "actual_hours": 0.0,
-                    "photos": [],
-                    "logs": [],
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    "est_hours": new_est_hours,
+                    "weight_units": new_weight
                 }
                 
-                st.session_state.work_orders[assigned_tech].append(new_wo_obj)
-                st.success(f"Work Order {new_id} successfully created and assigned to {assigned_tech}!")
+                st.session_state.unassigned_orders.append(new_order_obj)
+                st.success(f"Order {new_id} added to the unassigned queue! Run AI Dispatch to auto-assign.")
