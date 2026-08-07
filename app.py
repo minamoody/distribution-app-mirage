@@ -24,6 +24,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Automatically resolve Gemini API Key from environment or Streamlit secrets (no password input needed)
+ACTIVE_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", ""))
+
+if HAS_GENAI and ACTIVE_API_KEY:
+    genai.configure(api_key=ACTIVE_API_KEY)
+
 # ==========================================
 # 1. BILINGUAL TRANSLATION DICTIONARY (EN/AR)
 # ==========================================
@@ -40,8 +46,8 @@ TRANSLATIONS = {
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
         "sys_status": "System Operational Status",
-        "ai_active": "🟢 Gemini AI Engine: Active",
-        "ai_offline": "⚠️ Gemini AI: Enter Key in Sidebar",
+        "ai_active": "🟢 Gemini AI Intelligence: Ready",
+        "ai_offline": "⚠️ Gemini API Key Not Detected in Env/Secrets",
         "select_driver": "📌 Select Assigned Driver/Technician:",
         "total_jobs": "Total Assigned Orders",
         "completed_jobs": "Completed Today",
@@ -79,8 +85,8 @@ TRANSLATIONS = {
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
         "sys_status": "حالة النظام Operational",
-        "ai_active": "🟢 محرك الذكاء الاصطناعي: نشط",
-        "ai_offline": "⚠️ الذكاء الاصطناعي: أدخل المفتاح في الشريط الجانبي",
+        "ai_active": "🟢 الذكاء الاصطناعي: جاهز للعمل",
+        "ai_offline": "⚠️ مفتاح API غير موجود في إعدادات النظام",
         "select_driver": "📌 اختر السائق / الفني الميداني:",
         "total_jobs": "إجمالي طلبات التوزيع",
         "completed_jobs": "تم إنجازه اليوم",
@@ -118,9 +124,8 @@ st.session_state.setdefault("unassigned_orders", [])
 st.session_state.setdefault("eod_excel_records", [])
 st.session_state.setdefault("customer_ratings", [])
 st.session_state.setdefault("show_ai_panel", False)
-st.session_state.setdefault("user_api_key", "")
 st.session_state.setdefault("side_chat_history", [
-    {"role": "assistant", "content": "👋 Hi! I am Gemini. Ask me anything about your fleet ops, coding, analytics, or order status!"}
+    {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. I have full live visibility into your drivers, pending queues, and dispatch logs. Ask me anything!"}
 ])
 
 T = TRANSLATIONS[st.session_state.language]
@@ -133,37 +138,41 @@ def initialize_empty_state():
     st.session_state.customer_ratings = []
     st.session_state.show_ai_panel = False
     st.session_state.side_chat_history = [
-        {"role": "assistant", "content": "👋 Hi! I am Gemini. Ask me anything about your fleet ops, coding, analytics, or order status!"}
+        {"role": "assistant", "content": "👋 Welcome! I'm your AI Fleet Operations Strategist. I have full live visibility into your drivers, pending queues, and dispatch logs. Ask me anything!"}
     ]
 
 # ==========================================
-# 3. CONVERSATIONAL MULTI-TURN AI ENGINE
+# 3. HIGH-INTELLIGENCE CONVERSATIONAL AI ENGINE
 # ==========================================
-def run_chatable_gemini_query(user_query, api_key):
-    if not api_key:
-        return (
-            "⚠️ **Gemini API Key Missing**\n\n"
-            "Please paste your Google Gemini API Key in the **Sidebar** field under '🔑 Enter Gemini API Key' to start talking to me."
-        )
+def run_chatable_gemini_query(user_query):
+    if not ACTIVE_API_KEY:
+        return "⚠️ **Gemini API Key Missing.** Please set `GEMINI_API_KEY` in your environment variables or `.streamlit/secrets.toml`."
 
     if not HAS_GENAI:
-        return "❌ `google-generativeai` package is not installed in this environment."
+        return "❌ `google-generativeai` package is not installed."
 
     try:
-        genai.configure(api_key=api_key)
-        
-        context_data = {
-            "loaded_technicians": list(st.session_state.drivers.keys()),
-            "unassigned_orders_count": len(st.session_state.unassigned_orders),
-            "completed_eod_logs_count": len(st.session_state.eod_excel_records)
+        # Build ultra-rich live operational context
+        deep_context = {
+            "fleet_roster_summary": st.session_state.drivers,
+            "unassigned_orders_queue": st.session_state.unassigned_orders,
+            "assigned_orders_by_driver": st.session_state.assigned_orders,
+            "completed_eod_logs": st.session_state.eod_excel_records,
+            "customer_ratings": st.session_state.customer_ratings
         }
         
         system_instruction = f"""
-        You are Gemini, an intelligent operations AI collaborator integrated into Mirage Distribution & Fleet Hub.
-        Be helpful, precise, smart, and conversational.
-        
-        Current Live Application Context:
-        {json.dumps(context_data, indent=2)}
+        You are Gemini, an elite Operations Intelligence Strategist and Code Architect embedded into Mirage Distribution & Fleet Command.
+        You possess real-time direct access to the entire live system memory state outlined below:
+
+        === LIVE SYSTEM REAL-TIME DATA ===
+        {json.dumps(deep_context, indent=2, default=str)}
+        ==================================
+
+        YOUR ROLE & INSTRUCTIONS:
+        1. Answer questions about fleet load, unassigned orders, delivery priorities, driver bottlenecks, and execution efficiency using the exact real-time data above.
+        2. Provide expert advice on Python/Streamlit code improvements, logistics optimizations, and routing logic when asked.
+        3. Be clear, analytical, and direct. Use structured bullet points and bold formatting where appropriate.
         """
 
         formatted_history = []
@@ -171,19 +180,32 @@ def run_chatable_gemini_query(user_query, api_key):
             role = "user" if msg["role"] == "user" else "model"
             formatted_history.append({"role": role, "parts": [msg["content"]]})
 
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.2,  # Low temperature for sharp analytical precision
+            top_p=0.95
+        )
+
         try:
-            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system_instruction)
+            model = genai.GenerativeModel(
+                "gemini-2.5-flash",
+                system_instruction=system_instruction,
+                generation_config=generation_config
+            )
             chat = model.start_chat(history=formatted_history)
             response = chat.send_message(user_query)
             return response.text
         except Exception:
-            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_instruction)
+            model = genai.GenerativeModel(
+                "gemini-1.5-flash",
+                system_instruction=system_instruction,
+                generation_config=generation_config
+            )
             chat = model.start_chat(history=formatted_history)
             response = chat.send_message(user_query)
             return response.text
 
     except Exception as e:
-        return f"❌ **API Error:** {str(e)}"
+        return f"❌ **AI Processing Error:** {str(e)}"
 
 # ==========================================
 # 4. HELPER MATH & DISPATCH ENGINES
@@ -228,7 +250,7 @@ def generate_whatsapp_url(phone_number, text_message):
     return f"https://wa.me/{clean_phone}?text={encoded_text}"
 
 # ==========================================
-# 5. SIDEBAR NAVIGATION & API KEY INPUT
+# 5. SIDEBAR NAVIGATION
 # ==========================================
 st.sidebar.markdown(f"### {T['app_title']}")
 
@@ -258,15 +280,8 @@ app_module = st.sidebar.radio(
 
 st.sidebar.markdown("---")
 
-secret_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
-if secret_key:
-    active_api_key = secret_key
-else:
-    active_api_key = st.sidebar.text_input("🔑 Enter Gemini API Key:", value=st.session_state.user_api_key, type="password")
-    st.session_state.user_api_key = active_api_key
-
 st.sidebar.caption(T['sys_status'])
-if active_api_key:
+if ACTIVE_API_KEY:
     st.sidebar.success(T['ai_active'])
 else:
     st.sidebar.warning(T['ai_offline'])
@@ -283,7 +298,7 @@ top_c1, top_c2 = st.columns([4, 1])
 
 with top_c2:
     is_panel_open = st.session_state.get("show_ai_panel", False)
-    button_label = "❌ Close Gemini AI" if is_panel_open else "🤖 Open Gemini AI Panel"
+    button_label = "❌ Close AI Assistant" if is_panel_open else "🤖 Open AI Assistant"
     
     if st.button(button_label, use_container_width=True, type="primary"):
         st.session_state.show_ai_panel = not is_panel_open
@@ -661,8 +676,8 @@ with main_col:
 # ==========================================
 if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
-        st.subheader("🤖 Gemini Chat Assistant")
-        st.caption("Live AI assistant with conversational memory")
+        st.subheader("🤖 Gemini Operations Strategist")
+        st.caption("Live AI assistant with full system memory")
         st.markdown("---")
 
         chat_container = st.container(height=520)
@@ -672,7 +687,7 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-        if side_prompt := st.chat_input("Ask Gemini anything..."):
+        if side_prompt := st.chat_input("Ask Gemini about fleet state, code, or logs..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
             with chat_container:
@@ -680,8 +695,8 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
                     st.markdown(side_prompt)
                 
                 with st.chat_message("assistant"):
-                    with st.spinner("Gemini is thinking..."):
-                        bot_response = run_chatable_gemini_query(side_prompt, active_api_key)
+                    with st.spinner("Analyzing operational state..."):
+                        bot_response = run_chatable_gemini_query(side_prompt)
                         st.markdown(bot_response)
                         st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
             st.rerun()
