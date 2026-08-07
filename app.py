@@ -6,6 +6,7 @@ import urllib.parse
 import os
 import math
 import json
+import time
 
 # ==========================================
 # 0. SAFE DEPENDENCY & API IMPORTS
@@ -43,8 +44,8 @@ TRANSLATIONS = {
         "nav_menu": "Navigation Menu",
         "language_select": "🌐 Select Language / اختر اللغة",
         "nav_portal": "👨‍🔧 Driver & Tech Field Portal",
-        "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine",
-        "nav_excel_import": "📁 Separate Excel Upload Hub (Techs & Orders)",
+        "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine (1-Min Loop)",
+        "nav_excel_import": "📁 Excel Templates & Upload Hub",
         "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
@@ -66,18 +67,18 @@ TRANSLATIONS = {
         "site_photos": "📷 Site Photos & Visual Evidence",
         "upload_photo": "Upload New Delivery/Site Proof:",
         "submit_summary": "🚀 Submit Log & Sync to EOD Excel",
-        "ai_dispatch_header": "🤖 Automated AI Dispatch Engine",
-        "ai_dispatch_desc": "Gemini AI analyzes tech capacities, GPS proximity, cargo priority, and workloads from your uploaded files.",
-        "run_ai_dispatch": "⚡ Run Automated AI Dispatching Engine",
+        "ai_dispatch_header": "🤖 Automated AI Dispatch Engine (1-Minute Distribution Loop)",
+        "ai_dispatch_desc": "Evaluates technician capacity and automatically dispatches orders in 1-minute timed intervals.",
+        "run_ai_dispatch": "⚡ Run Automated AI Dispatching Engine (Single Pass)",
+        "run_1min_loop": "⏱️ Start 1-Minute Automated Minute-by-Minute Dispatch Loop",
         "unassigned_orders": "📦 Unassigned Corporate Orders",
         "driver_roster": "🚛 Driver & Fleet Capacity Roster",
         "geofence_header": "🎯 Smart Dispatch GPS & Geofence Simulator",
         "wa_header": "💬 WhatsApp Communication & Feedback Hub",
         "send_wa": "📲 Send WhatsApp Dispatch Notification",
         "download_excel": "📥 Download Master EOD Report (.XLSX)",
-        "driver_name": "Driver Name",
-        "actions_taken": "Actions Taken & Notes",
-        "ai_insights": "AI Summary & Action Items"
+        "download_tech_temp": "📥 Download Techs Excel Template",
+        "download_order_temp": "📥 Download Orders Excel Template"
     },
     "AR": {
         "app_title": "منظومة التوزيع وإدارة الأسطول - معراج",
@@ -85,8 +86,8 @@ TRANSLATIONS = {
         "nav_menu": "قائمة التحكم الرئيسية",
         "language_select": "🌐 اختر اللغة / Select Language",
         "nav_portal": "👨‍🔧 بوابة السائقين والفنيين الميدانيين",
-        "nav_ai_dispatch": "🤖 محرك التوزيع الآلي بالذكاء الاصطناعي",
-        "nav_excel_import": "📁 رفع ملفات Excel المنفصلة (الفنيين والطلبات)",
+        "nav_ai_dispatch": "🤖 محرك التوزيع الآلي (دورة كل دقيقة)",
+        "nav_excel_import": "📁 قوالب Excel ومركز الرفع",
         "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
@@ -108,30 +109,29 @@ TRANSLATIONS = {
         "site_photos": "📷 صور إثبات التسليم والموقع",
         "upload_photo": "رفع صورة إثبات الموقع/التسليم:",
         "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
-        "ai_dispatch_header": "🤖 محرك التوزيع الآلي بالذكاء الاصطناعي",
-        "ai_dispatch_desc": "يقوم الذكاء الاصطناعي بتحليل حمولة الفنيين، والمواقع الجغرافية، وأولويات الشحنات المرفوعة.",
-        "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي الذكي",
+        "ai_dispatch_header": "🤖 محرك التوزيع الآلي (دورة توزيع كل دقيقة)",
+        "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات تلقائياً على الفنيين بفواصل زمنية مدتها دقيقة واحدة.",
+        "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
+        "run_1min_loop": "⏱️ تشغيل حلقة التوزيع التلقائي كل دقيقة",
         "unassigned_orders": "📦 شحنات الشركات غير الموزعة",
         "driver_roster": "🚛 قائمة السائقين والطاقة الاستيعابية",
         "geofence_header": "🎯 محاكي النطاق الجغرافي والتتبع المباشر",
         "wa_header": "💬 مركز إشعارات الواتساب وتقييم العملاء",
         "send_wa": "📲 إرسال إشعار التوزيع عبر الواتساب",
         "download_excel": "📥 تحميل تقرير نهاية اليوم Master Excel (.XLSX)",
-        "driver_name": "اسم السائق",
-        "actions_taken": "الإجراءات واللاحظات",
-        "ai_insights": "تحليل الذكاء الاصطناعي والتوصيات"
+        "download_tech_temp": "📥 تحميل قالب الفنيين Excel Template",
+        "download_order_temp": "📥 تحميل قالب الطلبات Excel Template"
     }
 }
 
 # ==========================================
-# 2. SESSION STATE INITIALIZATION (CLEARED)
+# 2. SESSION STATE INITIALIZATION
 # ==========================================
 if "language" not in st.session_state:
     st.session_state.language = "EN"
 
 T = TRANSLATIONS[st.session_state.language]
 
-# Dynamically loaded state (starts empty until Excel is loaded)
 if "drivers" not in st.session_state:
     st.session_state.drivers = {}
 
@@ -150,6 +150,64 @@ if "customer_ratings" not in st.session_state:
 # ==========================================
 # 3. HELPER MATH, AI & EXCEL ENGINES
 # ==========================================
+def generate_technician_excel_template():
+    df_tech_template = pd.DataFrame([
+        {
+            "Name": "Example Tech 1",
+            "Status": "Available",
+            "Capacity": 10,
+            "Current Load": 0,
+            "Lat": 30.0444,
+            "Lon": 31.2357
+        },
+        {
+            "Name": "Example Tech 2",
+            "Status": "Available",
+            "Capacity": 8,
+            "Current Load": 0,
+            "Lat": 30.0731,
+            "Lon": 31.0182
+        }
+    ])
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_tech_template.to_excel(writer, index=False, sheet_name='Technicians')
+    return output.getvalue()
+
+def generate_orders_excel_template():
+    df_orders_template = pd.DataFrame([
+        {
+            "Order ID": "ORD-1001",
+            "Client": "Sample Corporate Client A",
+            "Contact": "+201012345678",
+            "Address": "Site 12, Cairo",
+            "Priority": "High",
+            "Cargo": "HVAC Replacement Parts",
+            "Details": "Handle with care",
+            "Est Hours": 2.5,
+            "Weight Units": 2,
+            "Lat": 30.0444,
+            "Lon": 31.2357
+        },
+        {
+            "Order ID": "ORD-1002",
+            "Client": "Sample Corporate Client B",
+            "Contact": "+201112223334",
+            "Address": "Sector 4, New Cairo",
+            "Priority": "Critical",
+            "Cargo": "Electrical Circuit Control Boards",
+            "Details": "Urgent installation required",
+            "Est Hours": 1.5,
+            "Weight Units": 1,
+            "Lat": 30.0271,
+            "Lon": 31.4398
+        }
+    ])
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_orders_template.to_excel(writer, index=False, sheet_name='Orders')
+    return output.getvalue()
+
 def calculate_haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371.0
     dlat = math.radians(lat2 - lat1)
@@ -160,65 +218,31 @@ def calculate_haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return round(R * c, 2)
 
-def run_automated_ai_dispatch():
+def run_automated_ai_dispatch(single_batch_only=False):
     if not st.session_state.unassigned_orders:
         return "No pending unassigned orders to dispatch."
         
     if not st.session_state.drivers:
-        return "No technicians loaded in the system! Please upload the Tech Excel file first."
+        return "No technicians loaded! Upload the Technicians file first."
 
-    if not AI_AVAILABLE:
-        dispatched_count = 0
-        unassigned_copy = list(st.session_state.unassigned_orders)
-        for order in unassigned_copy:
-            best_driver = min(st.session_state.drivers.keys(), key=lambda d: st.session_state.drivers[d]["current_load"])
-            
-            order["status"] = "Dispatched (Auto)"
-            order["photos"] = []
-            order["logs"] = []
-            order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            
-            st.session_state.assigned_orders[best_driver].append(order)
-            st.session_state.drivers[best_driver]["current_load"] += order.get("weight_units", 1)
-            st.session_state.unassigned_orders.remove(order)
-            dispatched_count += 1
-            
-        return f"Rule-Based Engine: Automatically assigned {dispatched_count} order(s) based on capacity metrics."
+    # Batch selection: 1 order per minute cycle or single batch
+    orders_to_dispatch = [st.session_state.unassigned_orders[0]] if single_batch_only else list(st.session_state.unassigned_orders)
 
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt_data = {
-            "unassigned_orders": st.session_state.unassigned_orders,
-            "drivers": st.session_state.drivers
-        }
+    dispatched_count = 0
+    for order in orders_to_dispatch:
+        best_driver = min(st.session_state.drivers.keys(), key=lambda d: st.session_state.drivers[d]["current_load"])
         
-        prompt = f"""
-        You are the Corporate Distribution Dispatcher AI. 
-        Analyze the following pending delivery orders and available drivers:
-        {json.dumps(prompt_data, indent=2)}
-
-        Create an optimal dispatch strategy matching each unassigned order to the best driver based on capacity, current load, and location proximity.
-        Provide your decision in a clear, executive structured dispatch summary.
-        """
-        response = model.generate_content(prompt)
+        order["status"] = f"Dispatched ({datetime.now().strftime('%H:%M:%S')})"
+        order["photos"] = []
+        order["logs"] = []
+        order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        unassigned_copy = list(st.session_state.unassigned_orders)
-        for i, order in enumerate(unassigned_copy):
-            drivers_list = list(st.session_state.drivers.keys())
-            target_driver = drivers_list[i % len(drivers_list)]
-            
-            order["status"] = "Dispatched (AI Auto)"
-            order["photos"] = []
-            order["logs"] = []
-            order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            
-            st.session_state.assigned_orders[target_driver].append(order)
-            st.session_state.drivers[target_driver]["current_load"] += order.get("weight_units", 1)
-            st.session_state.unassigned_orders.remove(order)
-            
-        return response.text
-    except Exception as e:
-        return f"AI Dispatch Execution Error: {str(e)}"
+        st.session_state.assigned_orders[best_driver].append(order)
+        st.session_state.drivers[best_driver]["current_load"] += order.get("weight_units", 1)
+        st.session_state.unassigned_orders.remove(order)
+        dispatched_count += 1
+
+    return f"Dispatch Cycle Completed: Successfully assigned {dispatched_count} order(s) at {datetime.now().strftime('%H:%M:%S')}."
 
 def run_gemini_summary_parser(raw_notes):
     if not AI_AVAILABLE:
@@ -277,35 +301,59 @@ else:
     st.sidebar.warning(T['ai_offline'])
 
 # ==========================================
-# 5. MODULE: SEPARATE EXCEL UPLOAD HUB
+# 5. MODULE: EXCEL TEMPLATES & UPLOAD HUB
 # ==========================================
 if app_module == T['nav_excel_import']:
     st.title(T['nav_excel_import'])
-    st.markdown("Upload your separate Excel files for Technicians/Drivers and Orders to populate the dispatch hub dynamically.")
+    st.markdown("Download official Excel templates for Technicians and Orders, then upload your completed files below.")
+    
+    # Template Download Buttons
+    st.subheader("📋 1. Download Official Excel Templates")
+    col_temp1, col_temp2 = st.columns(2)
+    
+    with col_temp1:
+        st.download_button(
+            label=T['download_tech_temp'],
+            data=generate_technician_excel_template(),
+            file_name="Technicians_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    with col_temp2:
+        st.download_button(
+            label=T['download_order_temp'],
+            data=generate_orders_excel_template(),
+            file_name="Orders_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+        
+    st.markdown("---")
+    st.subheader("📤 2. Upload Filled Excel Files")
     
     col_tech_file, col_order_file = st.columns(2)
     
-    # 1. Technicians File Upload
+    # Upload Technicians
     with col_tech_file:
-        st.subheader("1. Technicians / Drivers Excel File")
-        tech_file = st.file_uploader("Upload Techs Excel (.xlsx, .xls):", type=["xlsx", "xls"], key="tech_uploader")
+        st.markdown("#### Technicians / Drivers File")
+        tech_file = st.file_uploader("Upload Techs Excel (.xlsx):", type=["xlsx", "xls"], key="tech_uploader")
         
         if tech_file is not None:
             try:
                 df_techs = pd.read_excel(tech_file)
-                st.write("Preview Tech File:", df_techs.head())
+                st.dataframe(df_techs.head(), use_container_width=True)
                 
-                if st.button("Load Technicians into System"):
+                if st.button("Load Technicians into System", type="primary"):
                     st.session_state.drivers = {}
                     st.session_state.assigned_orders = {}
                     
                     for idx, row in df_techs.iterrows():
-                        name = str(row.get("Name", row.get("Driver", row.get("Technician", f"Tech-{idx+1}")))).strip()
+                        name = str(row.get("Name", f"Tech-{idx+1}")).strip()
                         status = str(row.get("Status", "Available")).strip()
-                        cap = int(row.get("Capacity", row.get("Capacity Units", 10)))
-                        load = int(row.get("Current Load", row.get("Load", 0)))
-                        lat = float(row.get("Lat", row.get("Latitude", 30.0444)))
-                        lon = float(row.get("Lon", row.get("Longitude", 31.2357)))
+                        cap = int(row.get("Capacity", 10))
+                        load = int(row.get("Current Load", 0))
+                        lat = float(row.get("Lat", 30.0444))
+                        lon = float(row.get("Lon", 31.2357))
                         
                         st.session_state.drivers[name] = {
                             "status": status,
@@ -316,35 +364,35 @@ if app_module == T['nav_excel_import']:
                         }
                         st.session_state.assigned_orders[name] = []
                         
-                    st.success(f"Loaded {len(st.session_state.drivers)} technicians successfully!")
+                    st.success(f"Successfully loaded {len(st.session_state.drivers)} technician(s)!")
             except Exception as e:
-                st.error(f"Error parsing Technicians Excel file: {str(e)}")
+                st.error(f"Error parsing Technicians file: {str(e)}")
 
-    # 2. Orders File Upload
+    # Upload Orders
     with col_order_file:
-        st.subheader("2. Distribution Orders Excel File")
-        order_file = st.file_uploader("Upload Orders Excel (.xlsx, .xls):", type=["xlsx", "xls"], key="order_uploader")
+        st.markdown("#### Distribution Orders File")
+        order_file = st.file_uploader("Upload Orders Excel (.xlsx):", type=["xlsx", "xls"], key="order_uploader")
         
         if order_file is not None:
             try:
                 df_orders = pd.read_excel(order_file)
-                st.write("Preview Orders File:", df_orders.head())
+                st.dataframe(df_orders.head(), use_container_width=True)
                 
-                if st.button("Load Orders into Dispatch Queue"):
+                if st.button("Load Orders into Dispatch Queue", type="primary"):
                     st.session_state.unassigned_orders = []
                     
                     for idx, row in df_orders.iterrows():
-                        o_id = str(row.get("Order ID", row.get("ID", f"ORD-{7001+idx}"))).strip()
-                        client = str(row.get("Client", row.get("Company", "Corporate Client"))).strip()
-                        contact = str(row.get("Contact", row.get("Phone", "+201000000000"))).strip()
-                        address = str(row.get("Address", row.get("Location", "Cairo"))).strip()
+                        o_id = str(row.get("Order ID", f"ORD-{1001+idx}")).strip()
+                        client = str(row.get("Client", "Corporate Client")).strip()
+                        contact = str(row.get("Contact", "+201000000000")).strip()
+                        address = str(row.get("Address", "Cairo")).strip()
                         priority = str(row.get("Priority", "Medium")).strip()
-                        cargo = str(row.get("Cargo", row.get("Items", "Package Goods"))).strip()
-                        details = str(row.get("Details", row.get("Notes", "Standard delivery"))).strip()
-                        est_hrs = float(row.get("Est Hours", row.get("Hours", 2.0)))
-                        weight = int(row.get("Weight Units", row.get("Weight", 1)))
-                        lat = float(row.get("Lat", row.get("Latitude", 30.0444)))
-                        lon = float(row.get("Lon", row.get("Longitude", 31.2357)))
+                        cargo = str(row.get("Cargo", "Package Goods")).strip()
+                        details = str(row.get("Details", "Standard delivery")).strip()
+                        est_hrs = float(row.get("Est Hours", 2.0))
+                        weight = int(row.get("Weight Units", 1))
+                        lat = float(row.get("Lat", 30.0444))
+                        lon = float(row.get("Lon", 31.2357))
                         
                         st.session_state.unassigned_orders.append({
                             "id": o_id,
@@ -360,9 +408,9 @@ if app_module == T['nav_excel_import']:
                             "weight_units": weight
                         })
                         
-                    st.success(f"Loaded {len(st.session_state.unassigned_orders)} unassigned orders into dispatch queue!")
+                    st.success(f"Successfully loaded {len(st.session_state.unassigned_orders)} order(s) into dispatch queue!")
             except Exception as e:
-                st.error(f"Error parsing Orders Excel file: {str(e)}")
+                st.error(f"Error parsing Orders file: {str(e)}")
 
 # ==========================================
 # 6. MODULE: FIELD PORTAL (DRIVER / TECH)
@@ -372,7 +420,7 @@ elif app_module == T['nav_portal']:
     st.caption("Drill-down order inspection, proof uploads, driver notes, and AI Excel sync.")
     
     if not st.session_state.drivers:
-        st.warning("⚠️ No technicians currently loaded in the system. Go to the 'Separate Excel Upload Hub' module to upload your Technicians file.")
+        st.warning("⚠️ No technicians loaded. Please upload your Technicians file in the Excel Templates & Upload Hub module.")
     else:
         col_driver_sel, m1, m2 = st.columns([2, 1, 1])
         
@@ -400,7 +448,6 @@ elif app_module == T['nav_portal']:
             
             current_ord = driver_orders[sel_idx]
             
-            # Order Inspection Card
             with st.expander(T['order_details'], expanded=True):
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"**{T['client_name']}:** {current_ord['client']}")
@@ -415,7 +462,6 @@ elif app_module == T['nav_portal']:
                 st.markdown(f"**{T['address']}:** {current_ord['address']}")
                 st.info(f"**Dispatch Notes:** {current_ord['details']}")
                 
-            # Photos / Visual Proof
             st.subheader(T['site_photos'])
             if current_ord.get("photos"):
                 p_cols = st.columns(len(current_ord["photos"]))
@@ -431,7 +477,6 @@ elif app_module == T['nav_portal']:
                 
             st.markdown("---")
             
-            # Completion Summary & AI Engine
             st.subheader("📝 Order Completion & AI Excel Sync")
             completion_notes = st.text_area(
                 "Driver / Technician Field Completion Notes:",
@@ -461,7 +506,7 @@ elif app_module == T['nav_portal']:
                     st.info(ai_result)
 
 # ==========================================
-# 7. MODULE: AUTOMATED AI DISPATCH ENGINE
+# 7. MODULE: AUTOMATED AI DISPATCH ENGINE (1-MIN LOOP)
 # ==========================================
 elif app_module == T['nav_ai_dispatch']:
     st.title(T['ai_dispatch_header'])
@@ -490,16 +535,35 @@ elif app_module == T['nav_ai_dispatch']:
                 })
             st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
         else:
-            st.warning("No technicians loaded. Please upload Tech Excel file.")
+            st.warning("No technicians loaded. Upload Tech Excel file.")
         
     st.markdown("---")
     
-    if st.button(T['run_ai_dispatch'], type="primary", use_container_width=True):
-        with st.spinner("Gemini AI optimizing logistics routes, capacity ratios, and workloads..."):
-            dispatch_result = run_automated_ai_dispatch()
-            st.success("Automated Dispatch Cycle Execution Completed!")
-            st.markdown("### 🤖 AI Dispatcher Recommendations & Execution Log")
+    btn_col1, btn_col2 = st.columns(2)
+    
+    with btn_col1:
+        if st.button(T['run_ai_dispatch'], type="primary", use_container_width=True):
+            dispatch_result = run_automated_ai_dispatch(single_batch_only=False)
+            st.success("Full Dispatch Execution Completed!")
             st.write(dispatch_result)
+            st.rerun()
+
+    with btn_col2:
+        if st.button(T['run_1min_loop'], use_container_width=True):
+            st.info("Starting Minute-by-Minute Automated Dispatching...")
+            progress_bar = st.progress(0)
+            status_box = st.empty()
+            
+            while len(st.session_state.unassigned_orders) > 0:
+                res = run_automated_ai_dispatch(single_batch_only=True)
+                status_box.success(res)
+                
+                # Wait 60 seconds (1 minute interval)
+                for second in range(60):
+                    time.sleep(1)
+                    progress_bar.progress((second + 1) / 60)
+                    
+            status_box.success("🎉 All pending orders dispatched across 1-minute interval loops!")
 
 # ==========================================
 # 8. MODULE: GPS GEOFENCING & FLEET MAP
