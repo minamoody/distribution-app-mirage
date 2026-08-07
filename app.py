@@ -27,13 +27,13 @@ TRANSLATIONS = {
         "app_subtitle": "Enterprise Automated Built-in AI Dispatch, GPS Logistics & Field Management System",
         "nav_menu": "Navigation Menu",
         "language_select": "🌐 Select Language / اختر اللغة",
-        "nav_portal": "👨‍🔧 Driver & Tech Field Portal",
+        "nav_portal": "👨‍🔧 Technician / فني Field Portal",
         "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine (1-Min Loop)",
-        "nav_excel_import": "📁 Excel Upload Hub (Techs & Orders)",
+        "nav_excel_import": "📁 Excel Upload Hub (Technicians & Orders)",
         "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
-        "select_driver": "📌 Select Assigned Driver/Technician:",
+        "select_tech": "📌 Select Assigned Technician / فني:",
         "total_jobs": "Total Assigned Orders",
         "completed_jobs": "Completed Today",
         "pending_jobs": "Pending Dispatch",
@@ -51,7 +51,7 @@ TRANSLATIONS = {
         "run_ai_dispatch": "⚡ Run Automated AI Dispatching Engine (Single Pass)",
         "run_1min_loop": "⏱️ Start 1-Minute Automated Dispatch Loop",
         "unassigned_orders": "📦 Unassigned Corporate Orders",
-        "driver_roster": "🚛 Driver & Fleet Capacity Roster",
+        "tech_roster": "🚛 Technician / فني & Fleet Capacity Roster",
         "geofence_header": "🎯 Smart Dispatch GPS & Geofence Simulator",
         "wa_header": "💬 WhatsApp Communication & Feedback Hub",
         "send_wa": "📲 Send WhatsApp Dispatch Notification",
@@ -63,13 +63,13 @@ TRANSLATIONS = {
         "app_subtitle": "النظام الذكي للتوزيع الآلي المدمج وتتبع الأسطول الميداني",
         "nav_menu": "قائمة التحكم الرئيسية",
         "language_select": "🌐 اختر اللغة / Select Language",
-        "nav_portal": "👨‍🔧 بوابة السائقين والفنيين الميدانيين",
+        "nav_portal": "👨‍🔧 بوابة الفنيين الميدانيين (Technician / فني)",
         "nav_ai_dispatch": "🤖 محرك التوزيع الذكي المدمج (دورة كل دقيقة)",
         "nav_excel_import": "📁 مركز رفع ملفات Excel (الفنيين والطلبات)",
         "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
-        "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
-        "select_driver": "📌 اختر السائق / الفني الميداني:",
+        "nav_eod": "📊 تقارير Excel نهاية اليوم والمؤشرات",
+        "select_tech": "📌 اختر الفني / Technician:",
         "total_jobs": "إجمالي طلبات التوزيع",
         "completed_jobs": "تم إنجازه اليوم",
         "pending_jobs": "قيد الانتظار",
@@ -87,7 +87,7 @@ TRANSLATIONS = {
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
         "run_1min_loop": "⏱️ تشغيل حلقة التوزيع التلقائي كل دقيقة",
         "unassigned_orders": "📦 شحنات الشركات غير الموزعة",
-        "driver_roster": "🚛 قائمة السائقين والطاقة الاستيعابية",
+        "tech_roster": "🚛 قائمة الفنيين والطاقة الاستيعابية",
         "geofence_header": "🎯 محاكي النطاق الجغرافي والتتبع المباشر",
         "wa_header": "💬 مركز إشعارات الواتساب وتقييم العملاء",
         "send_wa": "📲 إرسال إشعار التوزيع عبر الواتساب",
@@ -100,27 +100,27 @@ TRANSLATIONS = {
 # 2. SAFE SESSION STATE INITIALIZATION
 # ==========================================
 st.session_state.setdefault("language", "EN")
-st.session_state.setdefault("drivers", {})
+st.session_state.setdefault("technicians", {})
 st.session_state.setdefault("assigned_orders", {})
 st.session_state.setdefault("unassigned_orders", [])
 st.session_state.setdefault("eod_excel_records", [])
 st.session_state.setdefault("customer_ratings", [])
 st.session_state.setdefault("show_ai_panel", False)
 st.session_state.setdefault("side_chat_history", [
-    {"role": "assistant", "content": "👋 Welcome! I am your Built-in Autonomous Fleet Operations AI. Ask me anything about driver capacity, delivery status, or route recommendations."}
+    {"role": "assistant", "content": "👋 Welcome! I am your Built-in Autonomous Fleet Operations AI. Ask me anything about technician capacity, delivery status, or route recommendations."}
 ])
 
 T = TRANSLATIONS[st.session_state.language]
 
 def initialize_empty_state():
-    st.session_state.drivers = {}
+    st.session_state.technicians = {}
     st.session_state.assigned_orders = {}
     st.session_state.unassigned_orders = []
     st.session_state.eod_excel_records = []
     st.session_state.customer_ratings = []
     st.session_state.show_ai_panel = False
     st.session_state.side_chat_history = [
-        {"role": "assistant", "content": "👋 Welcome! I am your Built-in Autonomous Fleet Operations AI. Ask me anything about driver capacity, delivery status, or route recommendations."}
+        {"role": "assistant", "content": "👋 Welcome! I am your Built-in Autonomous Fleet Operations AI. Ask me anything about technician capacity, delivery status, or route recommendations."}
     ]
 
 # ==========================================
@@ -131,40 +131,40 @@ def run_builtin_autonomous_ai(user_query):
     
     greetings = ["hi", "hello", "hey", "greetings", "good morning", "good evening", "sup", "hola"]
     if query_lower in greetings or len(query_lower) <= 3:
-        return f"👋 Hello! I am online and ready. You have **{len(st.session_state.drivers)}** active technicians and **{len(st.session_state.unassigned_orders)}** unassigned orders in queue. How can I help you manage the fleet today?"
+        return f"👋 Hello! I am online and ready. You have **{len(st.session_state.technicians)}** active technicians / فنيين and **{len(st.session_state.unassigned_orders)}** unassigned orders in queue. How can I help you manage operations today?"
 
-    total_drivers = len(st.session_state.drivers)
+    total_techs = len(st.session_state.technicians)
     total_unassigned = len(st.session_state.unassigned_orders)
     total_completed = len(st.session_state.eod_excel_records)
     
-    driver_workloads = {}
-    for d_name, d_info in st.session_state.drivers.items():
-        load = d_info.get("current_load", 0)
-        cap = d_info.get("capacity_units", 10)
-        driver_workloads[d_name] = f"{load}/{cap} units"
+    tech_workloads = {}
+    for t_name, t_info in st.session_state.technicians.items():
+        load = t_info.get("current_load", 0)
+        cap = t_info.get("capacity_units", 10)
+        tech_workloads[t_name] = f"{load}/{cap} units"
 
     if any(k in query_lower for k in ["status", "overview", "summary", "state", "how are"]):
-        return f"""### 📊 Autonomous Fleet Status Summary
-* **Active Technicians / Drivers:** {total_drivers}
+        return f"""### 📊 Autonomous Operations Status Summary
+* **Active Technicians / فنيين:** {total_techs}
 * **Pending Unassigned Orders:** {total_unassigned}
 * **Completed EOD Logs:** {total_completed}
-* **Current Driver Workloads:** {json.dumps(driver_workloads, indent=1)}
+* **Current Technician Workloads:** {json.dumps(tech_workloads, indent=1)}
 
-*Analysis:* All systems are fully operational. Fleet load is balanced across active technicians. Ready for continuous dispatch loops."""
+*Analysis:* All systems are fully operational. Workload is balanced across active field technicians. Ready for continuous dispatch loops."""
 
-    elif any(k in query_lower for k in ["driver", "tech", "capacity", "load", "who"]):
-        if not st.session_state.drivers:
-            return "⚠️ No technician data loaded in the system yet. Please upload your Technicians Excel file via the Excel Upload Hub."
+    elif any(k in query_lower for k in ["tech", "technician", "فني", "capacity", "load", "who"]):
+        if not st.session_state.technicians:
+            return "⚠️ No technician / فني data loaded in the system yet. Please upload your Technicians Excel file via the Excel Upload Hub."
         
-        response_lines = ["### 🚛 Driver & Technician Capacity Analysis"]
-        for d_name, d_info in st.session_state.drivers.items():
-            pct = int((d_info['current_load'] / max(1, d_info['capacity_units'])) * 100)
-            response_lines.append(f"* **{d_name}**: Status `{d_info['status']}`, Load **{d_info['current_load']}/{d_info['capacity_units']}** units ({pct}% capacity utilization).")
+        response_lines = ["### 🚛 Technician / فني Capacity Analysis"]
+        for t_name, t_info in st.session_state.technicians.items():
+            pct = int((t_info['current_load'] / max(1, t_info['capacity_units'])) * 100)
+            response_lines.append(f"* **{t_name}**: Status `{t_info['status']}`, Load **{t_info['current_load']}/{t_info['capacity_units']}** units ({pct}% capacity utilization) | Home: `{t_info.get('home_base', 'Main Center')}`.")
         return "\n".join(response_lines)
 
     elif any(k in query_lower for k in ["order", "queue", "shipment", "pending", "unassigned"]):
         if not st.session_state.unassigned_orders:
-            return "🎉 There are currently zero unassigned orders in the queue. All corporate shipments have been successfully dispatched!"
+            return "🎉 There are currently zero unassigned orders in the queue. All shipments have been successfully dispatched!"
         
         response_lines = [f"### 📦 Unassigned Orders Queue ({total_unassigned} pending)"]
         for o in st.session_state.unassigned_orders[:5]:
@@ -174,12 +174,12 @@ def run_builtin_autonomous_ai(user_query):
         return "\n".join(response_lines)
 
     elif any(k in query_lower for k in ["recommend", "optimize", "advice", "strategy", "help"]):
-        if total_unassigned > 0 and total_drivers > 0:
-            best_d = min(st.session_state.drivers.keys(), key=lambda d: st.session_state.drivers[d]["current_load"])
+        if total_unassigned > 0 and total_techs > 0:
+            best_t = min(st.session_state.technicians.keys(), key=lambda t: st.session_state.technicians[t]["current_load"])
             return f"""### 🧠 AI Operational Recommendation
 1. **Immediate Action:** You have `{total_unassigned}` unassigned orders waiting. I recommend running the **Automated AI Dispatch Engine** to distribute shipments.
-2. **Optimal Driver Assignment:** Technician **{best_d}** currently holds the lowest load balance and is primed for the next high-priority dispatch batch.
-3. **Route Check:** Verify origin and destination routing before dispatching remote client sites."""
+2. **Optimal Technician Assignment:** Technician **{best_t}** currently holds the lowest load balance and is primed for the next high-priority dispatch batch.
+3. **Route Check:** Starting locations begin automatically from each technician's registered **Home Base**."""
         else:
             return """### 🧠 AI Operational Recommendation
 * System is ready. Please upload your Technicians and Orders Excel sheets in the **Excel Upload Hub** to initialize automated routing and capacity tracking."""
@@ -188,8 +188,8 @@ def run_builtin_autonomous_ai(user_query):
         return f"""### 🤖 Mirage AI Strategist Analysis
 I have processed your query: *"{user_query}"* against our live operational database.
 * **Current Operational Health:** Optimal.
-* **Active Queue:** {total_unassigned} unassigned orders across {total_drivers} registered technicians.
-* **Recommendation:** You can execute automated batch assignments directly from the **Automated AI Dispatch Engine** tab or inspect individual driver logs in the **Field Portal**."""
+* **Active Queue:** {total_unassigned} unassigned orders across {total_techs} registered technicians / فنيين.
+* **Recommendation:** You can execute automated batch assignments directly from the **Automated AI Dispatch Engine** tab or inspect individual technician logs in the **Field Portal**."""
 
 # ==========================================
 # 4. HELPER FUNCTIONS & DISPATCH ENGINES
@@ -198,21 +198,21 @@ def run_automated_ai_dispatch(single_batch_only=False):
     if not st.session_state.unassigned_orders:
         return "No pending unassigned orders to dispatch."
         
-    if not st.session_state.drivers:
+    if not st.session_state.technicians:
         return "No technicians loaded! Please upload your Technicians Excel file first."
 
     orders_to_dispatch = [st.session_state.unassigned_orders[0]] if single_batch_only else list(st.session_state.unassigned_orders)
 
     dispatched_count = 0
     for order in orders_to_dispatch:
-        best_driver = min(st.session_state.drivers.keys(), key=lambda d: st.session_state.drivers[d]["current_load"])
+        best_tech = min(st.session_state.technicians.keys(), key=lambda t: st.session_state.technicians[t]["current_load"])
         
         order["status"] = f"Dispatched ({datetime.now().strftime('%H:%M:%S')})"
         order["logs"] = []
         order["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         
-        st.session_state.assigned_orders[best_driver].append(order)
-        st.session_state.drivers[best_driver]["current_load"] += order.get("weight_units", 1)
+        st.session_state.assigned_orders[best_tech].append(order)
+        st.session_state.technicians[best_tech]["current_load"] += order.get("weight_units", 1)
         st.session_state.unassigned_orders.remove(order)
         dispatched_count += 1
 
@@ -249,8 +249,8 @@ app_module = st.sidebar.radio(
         T['nav_geofence'],
         T['nav_whatsapp'],
         T['nav_eod'],
-        "⭐ Driver Performance Matrix",
-        "💸 Cost & Fuel Tracker"
+        "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين",
+        "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود"
     ]
 )
 
@@ -287,11 +287,11 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Download blank daily bilingual templates (including the new Home/Starting Base column), fill them out, and upload your separate Excel files.")
+        st.markdown("Download blank daily bilingual templates (featuring the **Home / المنزل أو المركز الرئيسي** starting base column instead of latitude/longitude), fill them out, and upload your separate Excel files.")
         
         # --- BLANK TEMPLATE EXPORT SECTION ---
         st.subheader("📥 Download Blank Daily Bilingual Templates")
-        st.caption("Download these empty template sheets featuring bilingual English/Arabic column headers (e.g., Name / الاسم, Home / المنزل أو المركز الرئيسي) to fill out and track your daily schedules.")
+        st.caption("Download these empty template sheets featuring bilingual English/Arabic column headers to fill out and track your daily schedules.")
         
         col_down1, col_down2 = st.columns(2)
         
@@ -312,7 +312,7 @@ with main_col:
                 df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
             
             st.download_button(
-                label="📥 Download Empty Technicians Bilingual Template (.xlsx)",
+                label="📥 Download Empty Technicians / فنيين Bilingual Template (.xlsx)",
                 data=buffer_tech.getvalue(),
                 file_name=f"Technicians_Bilingual_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -349,7 +349,7 @@ with main_col:
         col_tech_file, col_order_file = st.columns(2)
         
         with col_tech_file:
-            st.subheader("1. Upload Filled Technicians File")
+            st.subheader("1. Upload Filled Technicians / فنيين File")
             tech_file = st.file_uploader("Upload Techs Excel (.xlsx, .xls):", type=["xlsx", "xls"], key="tech_uploader")
             
             if tech_file is not None:
@@ -357,8 +357,8 @@ with main_col:
                     df_techs = pd.read_excel(tech_file)
                     st.dataframe(df_techs, use_container_width=True)
                     
-                    if st.button("Load Technicians into System", type="primary"):
-                        st.session_state.drivers = {}
+                    if st.button("Load Technicians / فنيين into System", type="primary"):
+                        st.session_state.technicians = {}
                         st.session_state.assigned_orders = {}
                         
                         for idx, row in df_techs.iterrows():
@@ -372,7 +372,7 @@ with main_col:
                             cap = int(row.get("Capacity Units / وحدة السعة", row.get("Capacity", 10)))
                             load = int(row.get("Current Load / الحمل الحالي", row.get("Current Load", 0)))
                             
-                            st.session_state.drivers[name] = {
+                            st.session_state.technicians[name] = {
                                 "status": status,
                                 "home_base": home_base,
                                 "vehicle_type": v_type,
@@ -384,7 +384,7 @@ with main_col:
                             }
                             st.session_state.assigned_orders[name] = []
                             
-                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with home base and service profiles!")
+                        st.success(f"Loaded {len(st.session_state.technicians)} technician(s) / فني successfully with home base and service profiles!")
                 except Exception as e:
                     st.error(f"Error reading Technicians Excel file: {str(e)}")
 
@@ -430,40 +430,40 @@ with main_col:
     # --- MODULE 2: FIELD PORTAL ---
     elif app_module == T['nav_portal']:
         st.title(T['nav_portal'])
-        st.caption("Drill-down order inspection, field notes entry, and Excel sync.")
+        st.caption("Drill-down order inspection, field notes entry, and Excel sync for technicians / الفنيين.")
         
-        if not st.session_state.drivers:
+        if not st.session_state.technicians:
             st.info("No technicians currently loaded. Please upload your Excel files in the 'Excel Upload Hub'.")
         else:
-            col_driver_sel, m1, m2 = st.columns([2, 1, 1])
+            col_tech_sel, m1, m2 = st.columns([2, 1, 1])
             
-            with col_driver_sel:
-                driver_names = list(st.session_state.drivers.keys())
-                selected_driver = st.selectbox(T['select_driver'], driver_names)
+            with col_tech_sel:
+                tech_names = list(st.session_state.technicians.keys())
+                selected_tech = st.selectbox(T['select_tech'], tech_names)
                 
-            driver_orders = st.session_state.assigned_orders.get(selected_driver, [])
+            tech_orders = st.session_state.assigned_orders.get(selected_tech, [])
             
             with m1:
-                st.metric(T['total_jobs'], len(driver_orders))
+                st.metric(T['total_jobs'], len(tech_orders))
             with m2:
-                completed = sum(1 for o in driver_orders if o.get('status') == 'Completed')
+                completed = sum(1 for o in tech_orders if o.get('status') == 'Completed')
                 st.metric(T['completed_jobs'], completed)
                 
             st.markdown("---")
             
             # Display Technician Home Base Info
-            tech_info = st.session_state.drivers.get(selected_driver, {})
-            st.info(f"🏠 **Starting Base / Home:** {tech_info.get('home_base', 'Main Center')} | 🚛 **Vehicle:** {tech_info.get('vehicle_type', 'Car')} ({tech_info.get('vehicle_brand', 'N/A')}) | 🔧 **Scope & Specialty:** {tech_info.get('service_scope', 'Both')} | {tech_info.get('specialty', 'General')}")
+            tech_info = st.session_state.technicians.get(selected_tech, {})
+            st.info(f"🏠 **Starting Base / Home (نقطة الانطلاق):** {tech_info.get('home_base', 'Main Center')} | 🚛 **Vehicle / المركبة:** {tech_info.get('vehicle_type', 'Car')} ({tech_info.get('vehicle_brand', 'N/A')}) | 🔧 **Scope & Specialty / التخصص:** {tech_info.get('service_scope', 'Both')} | {tech_info.get('specialty', 'General')}")
             
-            if not driver_orders:
-                st.info(f"No active orders currently assigned to {selected_driver}.")
+            if not tech_orders:
+                st.info(f"No active orders currently assigned to {selected_tech}.")
             else:
-                st.subheader(f"Active Orders ({selected_driver})")
+                st.subheader(f"Active Orders ({selected_tech})")
                 
-                order_options = [f"{o['id']} - {o['client']} ({o['priority']} Priority) | [{o['status']}]" for o in driver_orders]
-                sel_idx = st.selectbox("Select Order to Process:", range(len(order_options)), format_func=lambda x: order_options[x])
+                order_options = [f"{o['id']} - {o['client']} ({o['priority']} Priority) | [{o['status']}]" for o in tech_orders]
+                sel_idx = st.selectbox("Select Order to Process / اختر الطلب للمعالجة:", range(len(order_options)), format_func=lambda x: order_options[x])
                 
-                current_ord = driver_orders[sel_idx]
+                current_ord = tech_orders[sel_idx]
                 
                 with st.expander(T['order_details'], expanded=True):
                     c1, c2, c3 = st.columns(3)
@@ -481,9 +481,9 @@ with main_col:
                     
                 st.markdown("---")
                 
-                st.subheader("📝 Order Completion Notes")
+                st.subheader("📝 Technician Completion Notes / ملاحظات إنجاز الفني")
                 completion_notes = st.text_area(
-                    "Technician Field Completion Notes:",
+                    "Enter field notes, repair summary, or client sign-off:",
                     placeholder="Enter completion details..."
                 )
                 
@@ -496,20 +496,20 @@ with main_col:
                         
                         st.session_state.eod_excel_records.append({
                             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "Driver Name": selected_driver,
+                            "Technician Name": selected_tech,
                             "Home Base": tech_info.get('home_base', 'Main Center'),
                             "Order ID": current_ord['id'],
                             "Client": current_ord['client'],
                             "Notes": completion_notes
                         })
-                        st.success(f"Order {current_ord['id']} marked COMPLETED!")
+                        st.success(f"Order {current_ord['id']} marked COMPLETED by {selected_tech}!")
 
     # --- MODULE 3: AUTOMATED AI DISPATCH ENGINE ---
     elif app_module == T['nav_ai_dispatch']:
         st.title(T['ai_dispatch_header'])
         st.markdown(T['ai_dispatch_desc'])
         
-        col_unassigned, col_drivers = st.columns([1, 1])
+        col_unassigned, col_techs = st.columns([1, 1])
         
         with col_unassigned:
             st.subheader(T['unassigned_orders'])
@@ -519,21 +519,21 @@ with main_col:
             else:
                 st.success("🎉 No unassigned orders pending in queue!")
                 
-        with col_drivers:
-            st.subheader(T['driver_roster'])
-            if st.session_state.drivers:
-                driver_data = []
-                for d_name, d_info in st.session_state.drivers.items():
-                    driver_data.append({
-                        "Driver/Tech": d_name,
-                        "Home Base": d_info.get('home_base', 'Main Center'),
-                        "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
-                        "Scope": d_info.get('service_scope', 'Both'),
-                        "Specialty": d_info.get('specialty', 'N/A'),
-                        "Status": d_info["status"],
-                        "Load": f"{d_info['current_load']}/{d_info['capacity_units']}"
+        with col_techs:
+            st.subheader(T['tech_roster'])
+            if st.session_state.technicians:
+                tech_data = []
+                for t_name, t_info in st.session_state.technicians.items():
+                    tech_data.append({
+                        "Technician / فني": t_name,
+                        "Home Base / نقطة الانطلاق": t_info.get('home_base', 'Main Center'),
+                        "Vehicle": f"{t_info.get('vehicle_type', 'Car')} ({t_info.get('vehicle_brand', 'N/A')})",
+                        "Scope": t_info.get('service_scope', 'Both'),
+                        "Specialty": t_info.get('specialty', 'N/A'),
+                        "Status": t_info["status"],
+                        "Load": f"{t_info['current_load']}/{t_info['capacity_units']}"
                     })
-                st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
+                st.dataframe(pd.DataFrame(tech_data), use_container_width=True)
             else:
                 st.info("No technicians loaded. Please upload your Technicians Excel file.")
             
@@ -552,7 +552,7 @@ with main_col:
             if st.button(T['run_1min_loop'], use_container_width=True):
                 if not st.session_state.unassigned_orders:
                     st.info("No orders pending to dispatch.")
-                elif not st.session_state.drivers:
+                elif not st.session_state.technicians:
                     st.error("No technicians loaded. Please upload Technicians Excel first.")
                 else:
                     st.info("Starting Minute-by-Minute Automated Dispatching...")
@@ -572,11 +572,11 @@ with main_col:
     # --- MODULE 4: GEOFENCE & ROUTE MAP ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
-        st.markdown("Overview of active technician starting bases and client delivery sites.")
+        st.markdown("Overview of active technician starting bases (Home / المركز الرئيسي) and client delivery sites.")
         
-        if st.session_state.drivers:
-            st.subheader("🏠 Technician Starting Bases / Homes")
-            base_data = [{"Technician": d_name, "Home Base": info.get("home_base", "Center"), "Vehicle": f"{info.get('vehicle_type')} ({info.get('vehicle_brand')})"} for d_name, info in st.session_state.drivers.items()]
+        if st.session_state.technicians:
+            st.subheader("🏠 Technician Starting Bases / أماكن الانطلاق المنزلية أو المركزية")
+            base_data = [{"Technician / فني": t_name, "Home Base / نقطة الانطلاق": info.get("home_base", "Center"), "Vehicle / المركبة": f"{info.get('vehicle_type')} ({info.get('vehicle_brand')})"} for t_name, info in st.session_state.technicians.items()]
             st.dataframe(pd.DataFrame(base_data), use_container_width=True)
         else:
             st.info("No technician data loaded.")
@@ -584,7 +584,7 @@ with main_col:
     # --- MODULE 5: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
         st.title(T['wa_header'])
-        st.markdown("Send dispatch notifications and updates directly via WhatsApp.")
+        st.markdown("Send dispatch notifications and updates directly to clients via WhatsApp.")
         
         all_flat_orders = [o for sublist in st.session_state.assigned_orders.values() for o in sublist]
         
@@ -602,7 +602,7 @@ with main_col:
                 st.subheader("✉️ WhatsApp Dispatch Message")
                 eta = st.slider("Estimated Arrival (Minutes):", 10, 120, 30)
                 
-                default_text = f"Hello {wa_target['client']}, your shipment ({wa_target['id']} - {wa_target['cargo']}) is en route. Estimated arrival in {eta} minutes. Contact: {wa_target['contact']}."
+                default_text = f"Hello {wa_target['client']}, your shipment ({wa_target['id']} - {wa_target['cargo']}) is en route with our technician. Estimated arrival in {eta} minutes. Contact: {wa_target['contact']}."
                 
                 custom_msg = st.text_area("Message Body:", value=default_text, height=120)
                 
@@ -618,8 +618,8 @@ with main_col:
                 
             with col_feedback:
                 st.subheader("⭐ Customer Feedback Collector")
-                rating = st.select_slider("Delivery Rating:", options=[1, 2, 3, 4, 5], value=5)
-                comments = st.text_input("Customer Feedback Notes:", "Prompt delivery and excellent handling.")
+                rating = st.select_slider("Service & Delivery Rating:", options=[1, 2, 3, 4, 5], value=5)
+                comments = st.text_input("Customer Feedback Notes:", "Professional technician service and prompt handling.")
                 
                 if st.button("Log Customer Feedback"):
                     st.session_state.customer_ratings.append({
@@ -637,13 +637,13 @@ with main_col:
         
         k1, k2, k3 = st.columns(3)
         k1.metric("Total EOD Logs Recorded", len(st.session_state.eod_excel_records))
-        k2.metric("On-Time Delivery Rate", "98.1%", "+1.5%")
-        k3.metric("Fleet Capacity Utilization", "84.2%", "+5.0%")
+        k2.metric("On-Time Service Rate", "98.1%", "+1.5%")
+        k3.metric("Technician Capacity Utilization", "84.2%", "+5.0%")
         
         st.markdown("---")
         
         if not st.session_state.eod_excel_records:
-            st.warning("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
+            st.warning("No End-of-Day submissions logged yet. Complete orders in the Technician Portal to build reports!")
         else:
             df_eod = pd.DataFrame(st.session_state.eod_excel_records)
             st.subheader("📋 Master End-of-Day Report Stream")
@@ -665,26 +665,26 @@ with main_col:
                 type="primary"
             )
 
-    # --- MODULE 7: DRIVER PERFORMANCE MATRIX ---
-    elif app_module == "⭐ Driver Performance Matrix":
-        st.title("⭐ Driver & Technician Performance Scoring Matrix")
+    # --- MODULE 7: TECHNICIAN PERFORMANCE MATRIX ---
+    elif app_module == "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين":
+        st.title("⭐ Technician / فني Performance Scoring Matrix")
         st.markdown("Evaluates active technicians based on completed jobs, workload balance, and customer ratings.")
         
-        if not st.session_state.drivers:
+        if not st.session_state.technicians:
             st.info("No technicians loaded in the system yet. Please upload your Technicians Excel file.")
         else:
             matrix_data = []
-            for d_name, d_info in st.session_state.drivers.items():
-                completed_count = sum(1 for o in st.session_state.assigned_orders.get(d_name, []) if o.get('status') == 'Completed')
-                total_assigned = len(st.session_state.assigned_orders.get(d_name, []))
+            for t_name, t_info in st.session_state.technicians.items():
+                completed_count = sum(1 for o in st.session_state.assigned_orders.get(t_name, []) if o.get('status') == 'Completed')
+                total_assigned = len(st.session_state.assigned_orders.get(t_name, []))
                 
-                score = min(100, 70 + (completed_count * 5) - (d_info['current_load'] * 2))
+                score = min(100, 70 + (completed_count * 5) - (t_info['current_load'] * 2))
                 
                 matrix_data.append({
-                    "Technician": d_name,
-                    "Home Base": d_info.get('home_base', 'Center'),
-                    "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
-                    "Status": d_info["status"],
+                    "Technician / فني": t_name,
+                    "Home Base / نقطة الانطلاق": t_info.get('home_base', 'Center'),
+                    "Vehicle": f"{t_info.get('vehicle_type', 'Car')} ({t_info.get('vehicle_brand', 'N/A')})",
+                    "Status": t_info["status"],
                     "Total Assigned": total_assigned,
                     "Completed Orders": completed_count,
                     "Performance Score (%)": max(40, score)
@@ -695,8 +695,8 @@ with main_col:
             st.success("Performance matrix successfully evaluated using live operational data.")
 
     # --- MODULE 8: COST & FUEL TRACKER ---
-    elif app_module == "💸 Cost & Fuel Tracker":
-        st.title("💸 Fleet Cost & Fuel Expense Tracker")
+    elif app_module == "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود":
+        st.title("💸 Technician Fleet Cost & Fuel Expense Tracker")
         st.markdown("Track vehicle fuel consumption, maintenance overhead, and travel expenses per route.")
         
         if "expense_logs" not in st.session_state:
@@ -705,7 +705,7 @@ with main_col:
         with st.form("expense_form"):
             c_exp1, c_exp2, c_exp3 = st.columns(3)
             with c_exp1:
-                vehicle_id = st.text_input("Vehicle / Tech ID:", "Van-01")
+                vehicle_id = st.text_input("Technician / Vehicle ID:", "Van-01")
             with c_exp2:
                 fuel_cost = st.number_input("Fuel Expense ($):", min_value=0.0, value=45.00)
             with c_exp3:
@@ -718,7 +718,7 @@ with main_col:
             if submit_expense:
                 st.session_state.expense_logs.append({
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "Vehicle": vehicle_id,
+                    "Technician / Vehicle": vehicle_id,
                     "Fuel ($)": fuel_cost,
                     "Maintenance ($)": maintenance_cost,
                     "Distance (KM)": distance_km,
@@ -755,7 +755,7 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-        if side_prompt := st.chat_input("Ask AI about fleet state, loads, or logs..."):
+        if side_prompt := st.chat_input("Ask AI about technician workloads, status, or logs..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
             bot_response = run_builtin_autonomous_ai(side_prompt)
