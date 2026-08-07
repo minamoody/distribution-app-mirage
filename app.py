@@ -9,7 +9,7 @@ import json
 import time
 
 # ==========================================
-# 0. DEPENDENCY & API SETUP
+# 0. DEPENDENCY & API SETUP (Zero-Config)
 # ==========================================
 try:
     import google.generativeai as genai
@@ -24,19 +24,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Automatically resolve Gemini API Key from environment, Streamlit secrets, or session state
-if "custom_api_key" not in st.session_state:
-    st.session_state.custom_api_key = ""
+# Hardcoded master API key for automatic server connection (accessible to all users)
+MASTER_API_KEY = "YOUR_ACTUAL_GEMINI_API_KEY_HERE"
 
-ACTIVE_API_KEY = (
-    st.session_state.custom_api_key.strip()
-    or os.getenv("GEMINI_API_KEY", "")
-    or st.secrets.get("GEMINI_API_KEY", "")
-)
-
-if HAS_GENAI and ACTIVE_API_KEY:
+if HAS_GENAI and MASTER_API_KEY:
     try:
-        genai.configure(api_key=ACTIVE_API_KEY)
+        genai.configure(api_key=MASTER_API_KEY)
     except Exception:
         pass
 
@@ -103,7 +96,7 @@ TRANSLATIONS = {
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
         "est_hours": "الوقت المتوقع للإنجاز",
-        "submit_summary": "🚀 إرسال التتقرير ومزامنة ملف Excel",
+        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الآلي (دورة توزيع كل دقيقة)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات المرفوعة تلقائياً على الفنيين بفواصل زمنية مدتها دقيقة واحدة.",
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
@@ -149,20 +142,14 @@ def initialize_empty_state():
 # 3. HIGH-INTELLIGENCE CONVERSATIONAL AI ENGINE
 # ==========================================
 def run_chatable_gemini_query(user_query):
-    current_key = (
-        st.session_state.custom_api_key.strip()
-        or os.getenv("GEMINI_API_KEY", "")
-        or st.secrets.get("GEMINI_API_KEY", "")
-    )
-
-    if not current_key:
-        return "Gemini API key is not configured. Please enter your API key in the field above to activate live responses."
+    if not MASTER_API_KEY or MASTER_API_KEY == "YOUR_ACTUAL_GEMINI_API_KEY_HERE":
+        return "⚠️ Gemini API key is not configured in the script. Please update MASTER_API_KEY."
 
     if not HAS_GENAI:
         return "The `google-generativeai` package is not installed in the environment."
 
     try:
-        genai.configure(api_key=current_key)
+        genai.configure(api_key=MASTER_API_KEY)
         
         deep_context = {
             "fleet_roster_summary": st.session_state.drivers,
@@ -653,7 +640,7 @@ with main_col:
         st.markdown("---")
         
         if not st.session_state.eod_excel_records:
-            st.info("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
+            st.warning("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
         else:
             df_eod = pd.DataFrame(st.session_state.eod_excel_records)
             st.subheader("📋 Master End-of-Day Report Stream")
@@ -682,17 +669,9 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
         st.subheader("🤖 Gemini Operations Strategist")
         st.caption("Live AI assistant with full system memory")
-        
-        # Clean inline key input field if key isn't provided in env
-        if not ACTIVE_API_KEY:
-            entered_key = st.text_input("Enter Gemini API Key (Optional):", type="password", key="key_input_chat")
-            if entered_key:
-                st.session_state.custom_api_key = entered_key
-                st.rerun()
-
         st.markdown("---")
 
-        chat_container = st.container(height=480)
+        chat_container = st.container(height=520)
         
         with chat_container:
             for message in st.session_state.side_chat_history:
