@@ -7,7 +7,6 @@ import os
 import math
 import json
 import time
-import random
 
 # ==========================================
 # 0. STREAMLIT CONFIGURATION & SETUP
@@ -125,24 +124,26 @@ def initialize_empty_state():
     ]
 
 # ==========================================
-# 3. FULLY BUILT-IN AUTONOMOUS AI BRAIN ENGINE
+# 3. FULLY OPTIMIZED INSTANT LOCAL AI BRAIN
 # ==========================================
 def run_builtin_autonomous_ai(user_query):
-    query_lower = user_query.lower()
+    query_lower = user_query.strip().lower()
     
-    # Extract live fleet metrics for contextual reasoning
+    # Instant replies for greetings or short inputs to eliminate lag
+    greetings = ["hi", "hello", "hey", "greetings", "good morning", "good evening", "sup", "hola"]
+    if query_lower in greetings or len(query_lower) <= 3:
+        return f"👋 Hello! I am online and ready. You have **{len(st.session_state.drivers)}** active technicians and **{len(st.session_state.unassigned_orders)}** unassigned orders in queue. How can I help you manage the fleet today?"
+
     total_drivers = len(st.session_state.drivers)
     total_unassigned = len(st.session_state.unassigned_orders)
     total_completed = len(st.session_state.eod_excel_records)
     
-    # Calculate load metrics
     driver_workloads = {}
     for d_name, d_info in st.session_state.drivers.items():
         load = d_info.get("current_load", 0)
         cap = d_info.get("capacity_units", 10)
         driver_workloads[d_name] = f"{load}/{cap} units"
 
-    # Intent Matching & Algorithmic Analysis
     if any(k in query_lower for k in ["status", "overview", "summary", "state", "how are"]):
         return f"""### 📊 Autonomous Fleet Status Summary
 * **Active Technicians / Drivers:** {total_drivers}
@@ -167,7 +168,7 @@ def run_builtin_autonomous_ai(user_query):
             return "🎉 There are currently zero unassigned orders in the queue. All corporate shipments have been successfully dispatched!"
         
         response_lines = [f"### 📦 Unassigned Orders Queue ({total_unassigned} pending)"]
-        for o in st.session_state.unassigned_orders[:5]: # Show top 5
+        for o in st.session_state.unassigned_orders[:5]:
             response_lines.append(f"* **{o['id']}** ({o['client']}) - Priority: `{o['priority']}` | Cargo: {o['cargo']}")
         if total_unassigned > 5:
             response_lines.append(f"*...and {total_unassigned - 5} more orders waiting in queue.")
@@ -185,12 +186,11 @@ def run_builtin_autonomous_ai(user_query):
 * System is ready. Please upload your Technicians and Orders Excel sheets in the **Excel Upload Hub** to initialize automated routing and capacity tracking."""
 
     else:
-        # Fallback intelligent conversational response combining data context
         return f"""### 🤖 Mirage AI Strategist Analysis
 I have processed your query: *"{user_query}"* against our live operational database.
 * **Current Operational Health:** Optimal.
 * **Active Queue:** {total_unassigned} unassigned orders across {total_drivers} registered technicians.
-* **Recommendation:** You can execute automated batch assignments directly from the **Automated AI Dispatch Engine** tab or inspect individual driver logs in the **Field Portal**. Let me know if you need specific driver stats or route breakdowns!"""
+* **Recommendation:** You can execute automated batch assignments directly from the **Automated AI Dispatch Engine** tab or inspect individual driver logs in the **Field Portal**."""
 
 # ==========================================
 # 4. HELPER MATH & DISPATCH ENGINES
@@ -669,14 +669,7 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
         if side_prompt := st.chat_input("Ask AI about fleet state, loads, or logs..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
-            with chat_container:
-                with st.chat_message("user"):
-                    st.markdown(side_prompt)
-                
-                with st.chat_message("assistant"):
-                    with st.spinner("Analyzing operational state..."):
-                        time.sleep(0.4) # Simulate lightning-fast local AI processing
-                        bot_response = run_builtin_autonomous_ai(side_prompt)
-                        st.markdown(bot_response)
-                        st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
+            # Instantly compute response without artificial sleep delays causing lag
+            bot_response = run_builtin_autonomous_ai(side_prompt)
+            st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
             st.rerun()
