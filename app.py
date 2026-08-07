@@ -46,7 +46,6 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 Driver & Tech Field Portal",
         "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine (1-Min Loop)",
         "nav_excel_import": "📁 Excel Upload Hub (Techs & Orders)",
-        "nav_analytics_chat": "💡 AI Data Analytics Chatbot",
         "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
@@ -86,7 +85,6 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 بوابة السائقين والفنيين الميدانيين",
         "nav_ai_dispatch": "🤖 محرك التوزيع الآلي (دورة كل دقيقة)",
         "nav_excel_import": "📁 مركز رفع ملفات Excel (الفنيين والطلبات)",
-        "nav_analytics_chat": "💡 شات بوت تحليل البيانات والذكاء الاصطناعي",
         "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
@@ -105,7 +103,7 @@ TRANSLATIONS = {
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
         "est_hours": "الوقت المتوقع للإنجاز",
-        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
+        "submit_summary": "🚀 إرسال التتقرير ومزامنة ملف Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الآلي (دورة توزيع كل دقيقة)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات المرفوعة تلقائياً على الفنيين بفواصل زمنية مدتها دقيقة واحدة.",
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
@@ -121,10 +119,18 @@ TRANSLATIONS = {
 }
 
 # ==========================================
-# 2. SESSION STATE INITIALIZATION & RESET
+# 2. SAFE SESSION STATE INITIALIZATION & RESET
 # ==========================================
-if "language" not in st.session_state:
-    st.session_state.language = "EN"
+st.session_state.setdefault("language", "EN")
+st.session_state.setdefault("drivers", {})
+st.session_state.setdefault("assigned_orders", {})
+st.session_state.setdefault("unassigned_orders", [])
+st.session_state.setdefault("eod_excel_records", [])
+st.session_state.setdefault("customer_ratings", [])
+st.session_state.setdefault("show_ai_panel", False)
+st.session_state.setdefault("side_chat_history", [
+    {"role": "assistant", "content": "👋 Hi! I am Gemini. I am fully integrated into your app. Ask me anything about your current fleet data, analytics, coding, or operational questions!"}
+])
 
 T = TRANSLATIONS[st.session_state.language]
 
@@ -136,11 +142,8 @@ def initialize_empty_state():
     st.session_state.customer_ratings = []
     st.session_state.show_ai_panel = False
     st.session_state.side_chat_history = [
-        {"role": "assistant", "content": "👋 Hi! I am Gemini. I am fully integrated into your app. Ask me anything about your current fleet data, coding, mathematics, or general knowledge!"}
+        {"role": "assistant", "content": "👋 Hi! I am Gemini. I am fully integrated into your app. Ask me anything about your current fleet data, analytics, coding, or operational questions!"}
     ]
-
-if "drivers" not in st.session_state:
-    initialize_empty_state()
 
 # Global Session Clear Button in Sidebar
 st.sidebar.markdown("---")
@@ -194,21 +197,23 @@ def run_retractable_gemini_query(user_query):
     }
 
     if not AI_AVAILABLE:
-        return f"I received your query: '{user_query}'.\n\n*(System Note: To unlock full reasoning, please configure your Gemini API Key in Streamlit Secrets).* Current system status: {len(context['loaded_technicians'])} drivers active."
+        return f"I received your query: '{user_query}'.\n\n*(System Note: Configure GEMINI_API_KEY in Streamlit Secrets to unlock full AI reasoning).* Current active technicians: {len(context['loaded_technicians'])}."
 
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
-        You are Gemini, a highly intelligent, adaptive AI assistant built into this enterprise app.
-        Answer the user's question clearly and helpful. You have access to the app's real-time state:
+        You are Gemini, an intelligent operations and data analytics AI assistant integrated into this enterprise application.
+        Answer the user's questions with actionable analytics, logic, and solutions.
+        
+        Current Live Application State:
         {json.dumps(context, indent=2)}
 
-        User Question: "{user_query}"
+        User Request: "{user_query}"
         """
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Gemini Engine Exception: {str(e)}"
+        return f"Gemini Engine Error: {str(e)}"
 
 def generate_whatsapp_url(phone_number, text_message):
     clean_phone = str(phone_number).replace("+", "").replace(" ", "").replace("-", "")
@@ -257,13 +262,15 @@ else:
 top_c1, top_c2 = st.columns([4, 1])
 
 with top_c2:
-    button_label = "❌ Close Gemini AI" if st.session_state.show_ai_panel else "🤖 Open Gemini AI Panel"
+    is_panel_open = st.session_state.get("show_ai_panel", False)
+    button_label = "❌ Close Gemini AI" if is_panel_open else "🤖 Open Gemini AI Panel"
+    
     if st.button(button_label, use_container_width=True, type="primary"):
-        st.session_state.show_ai_panel = not st.session_state.show_ai_panel
+        st.session_state.show_ai_panel = not is_panel_open
         st.rerun()
 
-# Layout layout split dynamically based on retractable panel state
-if st.session_state.show_ai_panel:
+# Dynamic layout split depending on panel state
+if st.session_state.get("show_ai_panel", False):
     main_col, ai_panel_col = st.columns([2, 1])
 else:
     main_col = st.container()
@@ -633,20 +640,18 @@ with main_col:
 # ==========================================
 # 7. RETRACTABLE GEMINI AI SIDE PANEL
 # ==========================================
-if st.session_state.show_ai_panel and ai_panel_col is not None:
+if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
         st.subheader("🤖 Gemini AI Drawer")
-        st.caption("Side-by-side intelligent assistant")
+        st.caption("Side-by-side AI assistant for Analytics & Fleet Ops")
         st.markdown("---")
 
-        # Dynamic Chat Feed container
         chat_container = st.container(height=500)
         with chat_container:
             for message in st.session_state.side_chat_history:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-        # Side panel prompt input
         if side_prompt := st.chat_input("Ask Gemini AI..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
@@ -655,7 +660,7 @@ if st.session_state.show_ai_panel and ai_panel_col is not None:
                     st.markdown(side_prompt)
                 
                 with st.chat_message("assistant"):
-                    with st.spinner("Gemini is thinking..."):
+                    with st.spinner("Gemini is analyzing..."):
                         bot_response = run_retractable_gemini_query(side_prompt)
                         st.markdown(bot_response)
                         st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
