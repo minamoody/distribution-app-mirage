@@ -297,12 +297,52 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Upload your separate Excel files for Technicians and Orders. All system data will be built strictly from your uploaded files.")
+        st.markdown("Download blank daily templates, fill them out, and upload your separate Excel files for Technicians and Orders.")
         
+        # --- BLANK TEMPLATE EXPORT SECTION ---
+        st.subheader("📥 Download Blank Daily Templates")
+        st.caption("Download these empty template sheets with pre-formatted column headers to fill out and track your schedules every day.")
+        
+        col_down1, col_down2 = st.columns(2)
+        
+        with col_down1:
+            df_blank_techs = pd.DataFrame(columns=["Name", "Status", "Capacity Units", "Current Load", "Latitude", "Longitude"])
+            buffer_tech = io.BytesIO()
+            with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
+                df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
+            
+            st.download_button(
+                label="📥 Download Empty Technicians Template (.xlsx)",
+                data=buffer_tech.getvalue(),
+                file_name=f"Technicians_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        with col_down2:
+            df_blank_orders = pd.DataFrame(columns=[
+                "Order ID", "Client", "Contact", "Address", "Priority", 
+                "Cargo", "Details", "Est Hours", "Weight Units", "Latitude", "Longitude"
+            ])
+            buffer_order = io.BytesIO()
+            with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
+                df_blank_orders.to_excel(writer, index=False, sheet_name='Orders')
+                
+            st.download_button(
+                label="📥 Download Empty Orders Template (.xlsx)",
+                data=buffer_order.getvalue(),
+                file_name=f"Orders_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        st.markdown("---")
+        
+        # --- UPLOAD SECTION ---
         col_tech_file, col_order_file = st.columns(2)
         
         with col_tech_file:
-            st.subheader("1. Technicians Excel File")
+            st.subheader("1. Upload Filled Technicians File")
             tech_file = st.file_uploader("Upload Techs Excel (.xlsx, .xls):", type=["xlsx", "xls"], key="tech_uploader")
             
             if tech_file is not None:
@@ -336,7 +376,7 @@ with main_col:
                     st.error(f"Error reading Technicians Excel file: {str(e)}")
 
         with col_order_file:
-            st.subheader("2. Distribution Orders Excel File")
+            st.subheader("2. Upload Filled Orders File")
             order_file = st.file_uploader("Upload Orders Excel (.xlsx, .xls):", type=["xlsx", "xls"], key="order_uploader")
             
             if order_file is not None:
@@ -664,7 +704,6 @@ with main_col:
                 completed_count = sum(1 for o in st.session_state.assigned_orders.get(d_name, []) if o.get('status') == 'Completed')
                 total_assigned = len(st.session_state.assigned_orders.get(d_name, []))
                 
-                # Compute mock performance score out of 100
                 score = min(100, 70 + (completed_count * 5) - (d_info['current_load'] * 2))
                 
                 matrix_data.append({
