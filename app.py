@@ -297,16 +297,20 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Download blank daily templates, fill them out, and upload your separate Excel files for Technicians and Orders.")
+        st.markdown("Download blank daily templates containing detailed vehicle specs, service types, and equipment categories, then upload your filled Excel files.")
         
         # --- BLANK TEMPLATE EXPORT SECTION ---
         st.subheader("📥 Download Blank Daily Templates")
-        st.caption("Download these empty template sheets with pre-formatted column headers to fill out and track your schedules every day.")
+        st.caption("Download these empty template sheets featuring full vehicle details (Car/Motorcycle & Brand), service scopes (Maintenance/Installation/Both), and appliance specializations.")
         
         col_down1, col_down2 = st.columns(2)
         
         with col_down1:
-            df_blank_techs = pd.DataFrame(columns=["Name", "Status", "Capacity Units", "Current Load", "Latitude", "Longitude"])
+            df_blank_techs = pd.DataFrame(columns=[
+                "Name", "Status", "Vehicle Type", "Vehicle Brand", 
+                "Service Scope", "Specialized Equipment / Appliances", 
+                "Capacity Units", "Current Load", "Latitude", "Longitude"
+            ])
             buffer_tech = io.BytesIO()
             with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
                 df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
@@ -357,6 +361,10 @@ with main_col:
                         for idx, row in df_techs.iterrows():
                             name = str(row.get("Name", row.get("Driver", row.get("Technician", f"Tech-{idx+1}")))).strip()
                             status = str(row.get("Status", "Available")).strip()
+                            v_type = str(row.get("Vehicle Type", "Car")).strip()
+                            v_brand = str(row.get("Vehicle Brand", "Toyota")).strip()
+                            service_scope = str(row.get("Service Scope", "Both")).strip()
+                            specialty = str(row.get("Specialized Equipment / Appliances", "AC, Refrigerator")).strip()
                             cap = int(row.get("Capacity", row.get("Capacity Units", 10)))
                             load = int(row.get("Current Load", row.get("Load", 0)))
                             lat = float(row.get("Lat", row.get("Latitude", 30.0444)))
@@ -364,6 +372,10 @@ with main_col:
                             
                             st.session_state.drivers[name] = {
                                 "status": status,
+                                "vehicle_type": v_type,
+                                "vehicle_brand": v_brand,
+                                "service_scope": service_scope,
+                                "specialty": specialty,
                                 "capacity_units": cap,
                                 "current_load": load,
                                 "lat": lat,
@@ -371,7 +383,7 @@ with main_col:
                             }
                             st.session_state.assigned_orders[name] = []
                             
-                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully!")
+                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with full vehicle and service profiles!")
                 except Exception as e:
                     st.error(f"Error reading Technicians Excel file: {str(e)}")
 
@@ -512,9 +524,11 @@ with main_col:
                 for d_name, d_info in st.session_state.drivers.items():
                     driver_data.append({
                         "Driver/Tech": d_name,
+                        "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
+                        "Scope": d_info.get('service_scope', 'Both'),
+                        "Specialty": d_info.get('specialty', 'N/A'),
                         "Status": d_info["status"],
-                        "Capacity Units": d_info["capacity_units"],
-                        "Current Load": d_info["current_load"]
+                        "Load": f"{d_info['current_load']}/{d_info['capacity_units']}"
                     })
                 st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
             else:
@@ -708,6 +722,7 @@ with main_col:
                 
                 matrix_data.append({
                     "Technician": d_name,
+                    "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
                     "Status": d_info["status"],
                     "Total Assigned": total_assigned,
                     "Completed Orders": completed_count,
