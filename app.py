@@ -9,7 +9,7 @@ import json
 import time
 
 # ==========================================
-# 0. SAFE DEPENDENCY & API IMPORTS
+# 0. AI DEPENDENCY IMPORT & KEY SETUP
 # ==========================================
 try:
     import google.generativeai as genai
@@ -24,18 +24,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
-if HAS_GENAI and GEMINI_KEY:
-    try:
-        genai.configure(api_key=GEMINI_KEY)
-        AI_AVAILABLE = True
-    except Exception:
-        AI_AVAILABLE = False
-else:
-    AI_AVAILABLE = False
-
 # ==========================================
-# 1. BILINGUAL TRANSLATION DICTIONARY (EN/AR)
+# 1. BILINGUAL TRANSLATION DICTIONARY
 # ==========================================
 TRANSLATIONS = {
     "EN": {
@@ -51,7 +41,7 @@ TRANSLATIONS = {
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
         "sys_status": "System Operational Status",
         "ai_active": "🟢 Gemini AI Engine: Active",
-        "ai_offline": "⚠️ Gemini AI: Standard Mode",
+        "ai_offline": "⚠️ Gemini AI: Enter API Key below",
         "select_driver": "📌 Select Assigned Driver/Technician:",
         "total_jobs": "Total Assigned Orders",
         "completed_jobs": "Completed Today",
@@ -90,7 +80,7 @@ TRANSLATIONS = {
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
         "sys_status": "حالة النظام Operational",
         "ai_active": "🟢 محرك الذكاء الاصطناعي: نشط",
-        "ai_offline": "⚠️ الذكاء الاصطناعي: وضع قياسي",
+        "ai_offline": "⚠️ الذكاء الاصطناعي: أدخل مفتاح API أدناه",
         "select_driver": "📌 اختر السائق / الفني الميداني:",
         "total_jobs": "إجمالي طلبات التوزيع",
         "completed_jobs": "تم إنجازه اليوم",
@@ -103,7 +93,7 @@ TRANSLATIONS = {
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
         "est_hours": "الوقت المتوقع للإنجاز",
-        "submit_summary": "🚀 إرسال التتقرير ومزامنة ملف Excel",
+        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الآلي (دورة توزيع كل دقيقة)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات المرفوعة تلقائياً على الفنيين بفواصل زمنية مدتها دقيقة واحدة.",
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
@@ -119,7 +109,7 @@ TRANSLATIONS = {
 }
 
 # ==========================================
-# 2. SAFE SESSION STATE INITIALIZATION & RESET
+# 2. SESSION STATE INITIALIZATION
 # ==========================================
 st.session_state.setdefault("language", "EN")
 st.session_state.setdefault("drivers", {})
@@ -128,8 +118,9 @@ st.session_state.setdefault("unassigned_orders", [])
 st.session_state.setdefault("eod_excel_records", [])
 st.session_state.setdefault("customer_ratings", [])
 st.session_state.setdefault("show_ai_panel", False)
+st.session_state.setdefault("user_api_key", "")
 st.session_state.setdefault("side_chat_history", [
-    {"role": "assistant", "content": "👋 Hi! I am Gemini. I am fully integrated into your app. Ask me anything about your current fleet data, analytics, coding, or operational questions!"}
+    {"role": "assistant", "content": "👋 Hi! I'm Gemini. Ask me anything about your current fleet data, operations, coding, or analytics!"}
 ])
 
 T = TRANSLATIONS[st.session_state.language]
@@ -142,18 +133,63 @@ def initialize_empty_state():
     st.session_state.customer_ratings = []
     st.session_state.show_ai_panel = False
     st.session_state.side_chat_history = [
-        {"role": "assistant", "content": "👋 Hi! I am Gemini. I am fully integrated into your app. Ask me anything about your current fleet data, analytics, coding, or operational questions!"}
+        {"role": "assistant", "content": "👋 Hi! I'm Gemini. Ask me anything about your current fleet data, operations, coding, or analytics!"}
     ]
 
-# Global Session Clear Button in Sidebar
-st.sidebar.markdown("---")
-if st.sidebar.button(T['clear_session'], type="secondary", use_container_width=True):
-    initialize_empty_state()
-    st.sidebar.success("Session memory cleared successfully!")
-    st.rerun()
+# ==========================================
+# 3. CHATABLE GEMINI ENGINE (MULTI-TURN)
+# ==========================================
+def run_chatable_gemini_query(user_query, api_key):
+    if not api_key:
+        return (
+            "⚠️ **Gemini API Key Required**\n\n"
+            "To chat with real AI, please paste your Gemini API Key in the **Sidebar** field under '🔑 Enter Gemini API Key'."
+        )
+
+    if not HAS_GENAI:
+        return "❌ `google-generativeai` package is not installed."
+
+    try:
+        genai.configure(api_key=api_key)
+        
+        # Prepare Live Context
+        context_data = {
+            "loaded_technicians": list(st.session_state.drivers.keys()),
+            "unassigned_orders_count": len(st.session_state.unassigned_orders),
+            "completed_eod_logs": len(st.session_state.eod_excel_records)
+        }
+        
+        system_instruction = f"""
+        You are Gemini, an expert AI collaborator and operations assistant for Mirage Distribution & Fleet Hub.
+        Be helpful, energetic, and intelligent. 
+        
+        Current Live Application State:
+        {json.dumps(context_data, indent=2)}
+        """
+
+        # Format past chat history for model.start_chat()
+        formatted_history = []
+        for msg in st.session_state.side_chat_history[:-1]:
+            role = "user" if msg["role"] == "user" else "model"
+            formatted_history.append({"role": role, "parts": [msg["content"]]})
+
+        # Try gemini-2.5-flash, fallback to gemini-1.5-flash
+        try:
+            model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=system_instruction)
+            chat = model.start_chat(history=formatted_history)
+            response = chat.send_message(user_query)
+            return response.text
+        except Exception:
+            model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system_instruction)
+            chat = model.start_chat(history=formatted_history)
+            response = chat.send_message(user_query)
+            return response.text
+
+    except Exception as e:
+        return f"❌ **API Error:** {str(e)}"
 
 # ==========================================
-# 3. HELPER MATH & DISPATCH ENGINES
+# 4. HELPER MATH & DISPATCH ENGINES
 # ==========================================
 def calculate_haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371.0
@@ -189,39 +225,13 @@ def run_automated_ai_dispatch(single_batch_only=False):
 
     return f"Dispatch Cycle Completed: Successfully assigned {dispatched_count} order(s) at {datetime.now().strftime('%H:%M:%S')}."
 
-def run_retractable_gemini_query(user_query):
-    context = {
-        "loaded_technicians": list(st.session_state.drivers.keys()),
-        "pending_orders": len(st.session_state.unassigned_orders),
-        "eod_logs_count": len(st.session_state.eod_excel_records)
-    }
-
-    if not AI_AVAILABLE:
-        return f"I received your query: '{user_query}'.\n\n*(System Note: Configure GEMINI_API_KEY in Streamlit Secrets to unlock full AI reasoning).* Current active technicians: {len(context['loaded_technicians'])}."
-
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"""
-        You are Gemini, an intelligent operations and data analytics AI assistant integrated into this enterprise application.
-        Answer the user's questions with actionable analytics, logic, and solutions.
-        
-        Current Live Application State:
-        {json.dumps(context, indent=2)}
-
-        User Request: "{user_query}"
-        """
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Gemini Engine Error: {str(e)}"
-
 def generate_whatsapp_url(phone_number, text_message):
     clean_phone = str(phone_number).replace("+", "").replace(" ", "").replace("-", "")
     encoded_text = urllib.parse.quote(text_message)
     return f"https://wa.me/{clean_phone}?text={encoded_text}"
 
 # ==========================================
-# 4. SIDEBAR NAVIGATION & LOCALIZATION
+# 5. SIDEBAR NAVIGATION & API KEY CONFIG
 # ==========================================
 st.sidebar.markdown(f"### {T['app_title']}")
 
@@ -250,14 +260,28 @@ app_module = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
+
+# Retrieve API Key from Secrets or UI Input
+secret_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
+if secret_key:
+    active_api_key = secret_key
+else:
+    active_api_key = st.sidebar.text_input("🔑 Enter Gemini API Key:", value=st.session_state.user_api_key, type="password")
+    st.session_state.user_api_key = active_api_key
+
 st.sidebar.caption(T['sys_status'])
-if AI_AVAILABLE:
+if active_api_key:
     st.sidebar.success(T['ai_active'])
 else:
     st.sidebar.warning(T['ai_offline'])
 
+if st.sidebar.button(T['clear_session'], type="secondary", use_container_width=True):
+    initialize_empty_state()
+    st.sidebar.success("Session memory cleared!")
+    st.rerun()
+
 # ==========================================
-# 5. TOP HEADER & RETRACTABLE PANEL TOGGLE
+# 6. TOP HEADER & DRAWER TOGGLE
 # ==========================================
 top_c1, top_c2 = st.columns([4, 1])
 
@@ -269,7 +293,6 @@ with top_c2:
         st.session_state.show_ai_panel = not is_panel_open
         st.rerun()
 
-# Dynamic layout split depending on panel state
 if st.session_state.get("show_ai_panel", False):
     main_col, ai_panel_col = st.columns([2, 1])
 else:
@@ -277,13 +300,12 @@ else:
     ai_panel_col = None
 
 # ==========================================
-# 6. MAIN APPLICATION MODULES
+# 7. MAIN APPLICATION MODULES
 # ==========================================
 with main_col:
-    # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Upload your separate Excel files for Technicians and Orders. All system data will be built strictly from your uploaded files.")
+        st.markdown("Upload your separate Excel files for Technicians and Orders.")
         
         col_tech_file, col_order_file = st.columns(2)
         
@@ -364,13 +386,11 @@ with main_col:
                 except Exception as e:
                     st.error(f"Error reading Orders Excel file: {str(e)}")
 
-    # --- MODULE 2: FIELD PORTAL ---
     elif app_module == T['nav_portal']:
         st.title(T['nav_portal'])
-        st.caption("Drill-down order inspection, field notes entry, and Excel sync.")
         
         if not st.session_state.drivers:
-            st.warning("⚠️ No technicians currently loaded. Please upload your Excel files in the 'Excel Upload Hub'.")
+            st.warning("⚠️ No technicians currently loaded. Upload Excel files first.")
         else:
             col_driver_sel, m1, m2 = st.columns([2, 1, 1])
             
@@ -391,8 +411,6 @@ with main_col:
             if not driver_orders:
                 st.info(f"No active orders currently assigned to {selected_driver}.")
             else:
-                st.subheader(f"Active Orders ({selected_driver})")
-                
                 order_options = [f"{o['id']} - {o['client']} ({o['priority']} Priority) | [{o['status']}]" for o in driver_orders]
                 sel_idx = st.selectbox("Select Order to Process:", range(len(order_options)), format_func=lambda x: order_options[x])
                 
@@ -402,31 +420,20 @@ with main_col:
                     c1, c2, c3 = st.columns(3)
                     c1.markdown(f"**{T['client_name']}:** {current_ord['client']}")
                     c1.markdown(f"**{T['contact_num']}:** `{current_ord['contact']}`")
-                    
                     c2.markdown(f"**{T['priority']}:** `{current_ord['priority']}`")
                     c2.markdown(f"**{T['status']}:** `{current_ord['status']}`")
-                    
                     c3.markdown(f"**{T['cargo_details']}:** {current_ord['cargo']}")
                     c3.markdown(f"**{T['est_hours']}:** {current_ord['est_hours']} hrs")
-                    
                     st.markdown(f"**{T['address']}:** {current_ord['address']}")
                     st.info(f"**Dispatch Notes:** {current_ord['details']}")
                     
                 st.markdown("---")
-                
-                st.subheader("📝 Order Completion Notes")
-                completion_notes = st.text_area(
-                    "Technician Field Completion Notes:",
-                    placeholder="Enter completion details..."
-                )
+                completion_notes = st.text_area("Technician Field Completion Notes:", placeholder="Enter completion details...")
                 
                 if st.button(T['submit_summary'], type="primary"):
-                    if not completion_notes.strip():
-                        st.error("Please enter completion notes before submitting.")
-                    else:
+                    if completion_notes.strip():
                         current_ord["status"] = "Completed"
                         current_ord.setdefault("logs", []).append(completion_notes)
-                        
                         st.session_state.eod_excel_records.append({
                             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "Driver Name": selected_driver,
@@ -436,223 +443,92 @@ with main_col:
                         })
                         st.success(f"Order {current_ord['id']} marked COMPLETED!")
 
-    # --- MODULE 3: AUTOMATED AI DISPATCH ENGINE ---
     elif app_module == T['nav_ai_dispatch']:
         st.title(T['ai_dispatch_header'])
-        st.markdown(T['ai_dispatch_desc'])
-        
         col_unassigned, col_drivers = st.columns([1, 1])
         
         with col_unassigned:
             st.subheader(T['unassigned_orders'])
             if st.session_state.unassigned_orders:
-                df_unassigned = pd.DataFrame(st.session_state.unassigned_orders)
-                st.dataframe(df_unassigned[["id", "client", "priority", "cargo", "weight_units"]], use_container_width=True)
+                st.dataframe(pd.DataFrame(st.session_state.unassigned_orders)[["id", "client", "priority", "cargo"]], use_container_width=True)
             else:
-                st.success("🎉 No unassigned orders pending in queue!")
+                st.success("🎉 No unassigned orders pending!")
                 
         with col_drivers:
             st.subheader(T['driver_roster'])
             if st.session_state.drivers:
-                driver_data = []
-                for d_name, d_info in st.session_state.drivers.items():
-                    driver_data.append({
-                        "Driver/Tech": d_name,
-                        "Status": d_info["status"],
-                        "Capacity Units": d_info["capacity_units"],
-                        "Current Load": d_info["current_load"]
-                    })
+                driver_data = [{"Driver/Tech": k, "Load": v["current_load"], "Capacity": v["capacity_units"]} for k, v in st.session_state.drivers.items()]
                 st.dataframe(pd.DataFrame(driver_data), use_container_width=True)
             else:
-                st.warning("No technicians loaded. Please upload your Technicians Excel file.")
+                st.warning("No technicians loaded.")
             
         st.markdown("---")
-        
         btn_col1, btn_col2 = st.columns(2)
         
         with btn_col1:
             if st.button(T['run_ai_dispatch'], type="primary", use_container_width=True):
-                dispatch_result = run_automated_ai_dispatch(single_batch_only=False)
-                st.success("Full Dispatch Execution Completed!")
-                st.write(dispatch_result)
+                res = run_automated_ai_dispatch(single_batch_only=False)
+                st.success(res)
                 st.rerun()
 
         with btn_col2:
             if st.button(T['run_1min_loop'], use_container_width=True):
-                if not st.session_state.unassigned_orders:
-                    st.warning("No orders pending to dispatch.")
-                elif not st.session_state.drivers:
-                    st.error("No technicians loaded. Please upload Technicians Excel first.")
-                else:
-                    st.info("Starting Minute-by-Minute Automated Dispatching...")
+                if st.session_state.unassigned_orders and st.session_state.drivers:
                     progress_bar = st.progress(0)
                     status_box = st.empty()
-                    
                     while len(st.session_state.unassigned_orders) > 0:
                         res = run_automated_ai_dispatch(single_batch_only=True)
                         status_box.success(res)
-                        
-                        for second in range(60):
+                        for sec in range(60):
                             time.sleep(1)
-                            progress_bar.progress((second + 1) / 60)
-                            
-                    status_box.success("🎉 All pending orders dispatched across 1-minute interval loops!")
+                            progress_bar.progress((sec + 1) / 60)
+                    status_box.success("🎉 All orders dispatched!")
 
-    # --- MODULE 4: GPS GEOFENCING ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
-        st.markdown("Real-time GPS coordinate mapping and geofence tracking.")
+        all_points = [{"lat": o["lat"], "lon": o["lon"], "Driver": d, "Order": o["id"]} for d, orders in st.session_state.assigned_orders.items() for o in orders]
+        df_map = pd.DataFrame(all_points)
         
-        all_map_points = []
-        for d_name, orders in st.session_state.assigned_orders.items():
-            for o in orders:
-                all_map_points.append({
-                    "lat": o["lat"],
-                    "lon": o["lon"],
-                    "Driver": d_name,
-                    "Order": o["id"],
-                    "Client": o["client"]
-                })
-                
-        df_map_points = pd.DataFrame(all_map_points)
-        
-        col_map, col_sim = st.columns([2, 1])
-        
-        with col_map:
-            st.subheader("🗺️ Live GPS Map")
-            if not df_map_points.empty:
-                st.map(df_map_points, zoom=10, use_container_width=True)
-                st.dataframe(df_map_points, use_container_width=True)
-            else:
-                st.info("No active waypoints to display.")
-                
-        with col_sim:
-            st.subheader("📡 Live Driver Proximity Check")
-            if not df_map_points.empty:
-                selected_check_id = st.selectbox("Target Order for Check:", df_map_points["Order"].tolist())
-                
-                target_obj = None
-                for d_name, orders in st.session_state.assigned_orders.items():
-                    for o in orders:
-                        if o["id"] == selected_check_id:
-                            target_obj = o
-                            break
-                            
-                if target_obj:
-                    sim_lat = st.number_input("Simulated Driver Lat:", value=target_obj["lat"] + 0.002, format="%.4f")
-                    sim_lon = st.number_input("Simulated Driver Lon:", value=target_obj["lon"] - 0.001, format="%.4f")
-                    
-                    dist_km = calculate_haversine_distance(sim_lat, sim_lon, target_obj["lat"], target_obj["lon"])
-                    dist_m = int(dist_km * 1000)
-                    
-                    st.metric("Distance to Site", f"{dist_m} meters", delta=f"{dist_km} km")
-                    
-                    if dist_m <= 500:
-                        st.success("🟢 WITHIN GEOFENCE RADIUS (< 500m)")
-                        target_obj["status"] = "On Site"
-                    else:
-                        st.warning("🔴 OUTSIDE GEOFENCE RADIUS")
+        if not df_map.empty:
+            st.map(df_map, zoom=10, use_container_width=True)
+        else:
+            st.info("No active waypoints to display on GPS map.")
 
-    # --- MODULE 5: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
         st.title(T['wa_header'])
-        st.markdown("Send dispatch notifications and updates directly via WhatsApp.")
-        
-        all_flat_orders = [o for sublist in st.session_state.assigned_orders.values() for o in sublist]
-        
-        if not all_flat_orders:
-            st.info("No assigned orders available for WhatsApp dispatch alerts.")
-        else:
-            order_labels = [f"{o['id']} - {o['client']} ({o['contact']})" for o in all_flat_orders]
-            sel_wa_idx = st.selectbox("Select Target Client Order:", range(len(order_labels)), format_func=lambda x: order_labels[x])
-            
-            wa_target = all_flat_orders[sel_wa_idx]
-            
-            col_wa_composer, col_feedback = st.columns(2)
-            
-            with col_wa_composer:
-                st.subheader("✉️ WhatsApp Dispatch Message")
-                eta = st.slider("Estimated Arrival (Minutes):", 10, 120, 30)
-                
-                default_text = f"Hello {wa_target['client']}, your shipment ({wa_target['id']} - {wa_target['cargo']}) is en route. Estimated arrival in {eta} minutes. Contact: {wa_target['contact']}."
-                
-                custom_msg = st.text_area("Message Body:", value=default_text, height=120)
-                
-                wa_link = generate_whatsapp_url(wa_target["contact"], custom_msg)
-                
-                st.markdown(f"""
-                    <a href="{wa_link}" target="_blank">
-                        <button style="background-color:#25D366; color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer;">
-                            {T['send_wa']}
-                        </button>
-                    </a>
-                """, unsafe_allow_html=True)
-                
-            with col_feedback:
-                st.subheader("⭐ Customer Feedback Collector")
-                rating = st.select_slider("Delivery Rating:", options=[1, 2, 3, 4, 5], value=5)
-                comments = st.text_input("Customer Feedback Notes:", "Prompt delivery and excellent handling.")
-                
-                if st.button("Log Customer Feedback"):
-                    st.session_state.customer_ratings.append({
-                        "Order ID": wa_target["id"],
-                        "Client": wa_target["client"],
-                        "Rating": rating,
-                        "Comments": comments
-                    })
-                    st.success("Feedback logged successfully!")
+        all_orders = [o for sub in st.session_state.assigned_orders.values() for o in sub]
+        if all_orders:
+            sel_wa_idx = st.selectbox("Select Target Client:", range(len(all_orders)), format_func=lambda x: f"{all_orders[x]['id']} - {all_orders[x]['client']}")
+            wa_target = all_orders[sel_wa_idx]
+            custom_msg = st.text_area("Message Body:", value=f"Hello {wa_target['client']}, your shipment ({wa_target['id']}) is en route!")
+            wa_link = generate_whatsapp_url(wa_target["contact"], custom_msg)
+            st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer;">Send WhatsApp</button></a>', unsafe_allow_html=True)
 
-    # --- MODULE 6: EXCEL EOD REPORTS & KPIS ---
     elif app_module == T['nav_eod']:
         st.title(T['nav_eod'])
-        st.markdown("Export consolidated daily logs and executive Excel reports.")
-        
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Total EOD Logs Recorded", len(st.session_state.eod_excel_records))
-        k2.metric("On-Time Delivery Rate", "98.1%", "+1.5%")
-        k3.metric("Fleet Capacity Utilization", "84.2%", "+5.0%")
-        
-        st.markdown("---")
-        
-        if not st.session_state.eod_excel_records:
-            st.warning("No End-of-Day submissions logged yet. Complete orders in the Driver Portal to build reports!")
-        else:
+        if st.session_state.eod_excel_records:
             df_eod = pd.DataFrame(st.session_state.eod_excel_records)
-            st.subheader("📋 Master End-of-Day Report Stream")
             st.dataframe(df_eod, use_container_width=True)
-            
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                df_eod.to_excel(writer, index=False, sheet_name='EOD_Distribution_Log')
-                if st.session_state.customer_ratings:
-                    pd.DataFrame(st.session_state.customer_ratings).to_excel(writer, index=False, sheet_name='Customer_Feedback')
-                    
-            excel_bytes = excel_buffer.getvalue()
-            
-            st.download_button(
-                label=T['download_excel'],
-                data=excel_bytes,
-                file_name=f"Distribution_EOD_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
 
 # ==========================================
-# 7. RETRACTABLE GEMINI AI SIDE PANEL
+# 8. RETRACTABLE GEMINI AI CHAT DRAWER
 # ==========================================
 if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
-        st.subheader("🤖 Gemini AI Drawer")
-        st.caption("Side-by-side AI assistant for Analytics & Fleet Ops")
+        st.subheader("🤖 Gemini Chat Assistant")
+        st.caption("Live AI assistant with conversational memory")
         st.markdown("---")
 
-        chat_container = st.container(height=500)
+        chat_container = st.container(height=520)
+        
+        # Render past history
         with chat_container:
             for message in st.session_state.side_chat_history:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-        if side_prompt := st.chat_input("Ask Gemini AI..."):
+        # Interactive Chat Input
+        if side_prompt := st.chat_input("Ask Gemini anything..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
             with chat_container:
@@ -660,8 +536,8 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
                     st.markdown(side_prompt)
                 
                 with st.chat_message("assistant"):
-                    with st.spinner("Gemini is analyzing..."):
-                        bot_response = run_retractable_gemini_query(side_prompt)
+                    with st.spinner("Gemini is thinking..."):
+                        bot_response = run_chatable_gemini_query(side_prompt, active_api_key)
                         st.markdown(bot_response)
                         st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
             st.rerun()
