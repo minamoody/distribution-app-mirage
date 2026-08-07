@@ -36,7 +36,7 @@ CITY_COORDS = {
 
 T = {
     "English": {
-        "title": "⚡ AI Fleet Command & Proximity Dispatch System",
+        "title": "⚡ AI Fleet Command, Time-Slot Scheduling & Analytics System",
         "tab1": "🚀 Dispatch Hub",
         "tab2": "🗺️ Interactive Map",
         "tab3": "📱 Driver WhatsApp Portal",
@@ -48,7 +48,7 @@ T = {
         "allow_overflow": "Allow Cross-Brand Overflow",
         "overflow_help": "If a brand team is full, allow other available drivers to assist.",
         "fuel_cost_label": "Est. Fuel Cost per KM (EGP)",
-        "run_dispatch": "⚡ Run AI Proximity Dispatch",
+        "run_dispatch": "⚡ Run AI Proximity & Schedule Dispatch",
         "results_header": "📋 Dispatch Allocation Results",
         "download_excel": "📥 Download Dispatched Sheet (Excel)",
         "orders_loaded": "Loaded {count} orders successfully!",
@@ -61,12 +61,15 @@ T = {
         "vehicle": "Vehicle",
         "phone": "Phone",
         "status": "Status",
-        "analytics_header": "📊 Performance & Transport Cost Analytics",
+        "analytics_header": "📊 Performance, Scheduling & Financial Analytics",
         "total_jobs": "Total Jobs",
         "allocated": "Allocated",
-        "est_dist": "Est. Total Fleet Distance",
-        "est_fuel_cost": "Est. Fleet Fuel Cost",
-        "heatmap": "Fleet Capacity & Proximity Matrix",
+        "est_dist": "Est. Fleet Distance",
+        "est_fuel_cost": "Est. Fuel Cost",
+        "total_rev": "Total Projected Revenue",
+        "net_margin": "Est. Net Fleet Margin",
+        "util_rate": "Fleet Capacity Utilization",
+        "heatmap": "Fleet Capacity, Workload & Revenue Breakdown",
         "run_analytics_first": "Run dispatch to populate analytics dashboard.",
         "db_header": "⚙️ Master Technician Profile Setup",
         "db_sub": "Manage technician start locations, appliance specialties, skills, max travel radius, and status.",
@@ -75,11 +78,11 @@ T = {
         "lang_select": "🌐 Language / اللغة",
     },
     "العربية": {
-        "title": "⚡ نظام إدارة وتوزيع الأسطول الذكي حسب الموقع",
+        "title": "⚡ نظام إدارة وتوزيع الأسطول الذكي والمواعيد والتحليلات",
         "tab1": "🚀 مركز التوزيع",
         "tab2": "🗺️ الخريطة التفاعلية",
         "tab3": "📱 بوابة واتساب للفنيين",
-        "tab4": "📊 التحليلات والتكاليف",
+        "tab4": "📊 التحليلات الماليّة والأداء",
         "tab5": "⚙️ قاعدة بيانات الفنيين المتقدمة",
         "upload_header": "📂 رفع جدول أوامر العمل اليومية",
         "upload_label": "رفع ملف أوامر العمل (Excel أو CSV)",
@@ -87,25 +90,28 @@ T = {
         "allow_overflow": "السماح بالتوزيع بين العلامات التجارية",
         "overflow_help": "إذا كانت سعة فريق علامة معينة مكتملة، يتم الاستعانة بفنيين آخرين قريبي الموقع.",
         "fuel_cost_label": "متوسط تكلفة الوقود لكل كم (جنيه)",
-        "run_dispatch": "⚡ تشغيل التوزيع الذكي حسب المسافة والتخصص",
+        "run_dispatch": "⚡ تشغيل التوزيع الذكي حسب المسافة والمواعيد",
         "results_header": "📋 نتائج توزيع المهام",
         "download_excel": "📥 تحميل جدول التوزيع (Excel)",
         "orders_loaded": "تم تحميل {count} أمر عمل بنجاح!",
         "map_header": "🗺️ خريطة مسارات الفنيين ومواقع الانطلاق",
         "map_info": "قم بتشغيل الموزع الذكي في تبويب 'مركز التوزيع' لعرض المسارات على الخريطة.",
         "wa_header": "📱 تفاصيل مهام الفنيين وإرسال واتساب",
-        "wa_send": "📲 إرسال تفاصيل المهام الكاملة عبر واتساب",
+        "wa_send": "📲 إرسال تفاصيل المهام عبر واتساب",
         "wa_jobs": "مهام مُسندة",
         "no_data": "لا توجد بيانات توزيع نشطة حالياً.",
         "vehicle": "وسيلة النقل",
         "phone": "الهاتف",
         "status": "الحالة",
-        "analytics_header": "📊 تحليلات الأداء وتكاليف النقل",
+        "analytics_header": "📊 تحليلات الأداء والمواعيد والإيرادات",
         "total_jobs": "إجمالي المهام",
         "allocated": "نسبة التوزيع",
-        "est_dist": "إجمالي المسافة التقديرية",
-        "est_fuel_cost": "تكلفة الوقود التقديرية",
-        "heatmap": "مصفوفة سعة الأسطول والنطاق الجغرافي",
+        "est_dist": "إجمالي المسافة",
+        "est_fuel_cost": "تكلفة الوقود",
+        "total_rev": "إجمالي الإيراد المتوقع",
+        "net_margin": "صافي الربح التقديري",
+        "util_rate": "نسبة استغلال سعة الأسطول",
+        "heatmap": "مصفوفة أداء وسعة وساعات الفنيين والإيرادات",
         "run_analytics_first": "قم بتشغيل التوزيع لعرض تحليلات الأداء.",
         "db_header": "⚙️ إعداد البروفايل التفصيلي للفنيين",
         "db_sub": "تحديد نقطة الانطلاق (مركز ميراج أو المنطقة)، التخصص (تكييف/ثلاجات)، نطاق الحركة، الخبرة، وحالة التواجد.",
@@ -217,7 +223,7 @@ def get_effective_coords(row):
     return next((coords for k, coords in CITY_COORDS.items() if k in zone_raw or zone_raw in k), MIRAGE_CENTER_COORDS)
 
 # -------------------------------------------------------------------
-# 4. GEO-DISTANCE CALCULATIONS & DISPATCH ENGINE
+# 4. GEO-DISTANCE, GOOGLE MAPS & DISPATCH ENGINE
 # -------------------------------------------------------------------
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
@@ -232,32 +238,51 @@ def classify_distance(city_name):
     city_str = str(city_name).upper().strip()
     return "Far" if any(area in city_str for area in FAR_AREAS) else "Near"
 
+def generate_google_maps_url(address, city):
+    full_loc = f"{address}, {city}, Egypt" if address else f"{city}, Egypt"
+    encoded = urllib.parse.quote(full_loc)
+    return f"https://www.google.com/maps/search/?api=1&query={encoded}"
+
 def generate_whatsapp_link(phone, tech_name, orders, lang="English"):
     if lang == "العربية":
         msg = f"📱 *أوامر العمل اليومية لـ {tech_name}*\n"
         msg += f"إجمالي المهام: {len(orders)}\n\n"
         for i, (_, row) in enumerate(orders.iterrows(), 1):
+            addr = row.get('Address', row.get('Full_Address', 'N/A'))
+            city = row.get('City', 'N/A')
+            gmaps_link = generate_google_maps_url(addr, city)
+            time_slot = row.get('Time_Slot', row.get('Preferred_Time', '09:00 AM - 05:00 PM'))
+
             msg += f"📋 *مهمة رقم #{i}*\n"
             msg += f"🔹 *رقم الطلب:* {row.get('Work_Order', row.get('Order_Id', 'N/A'))}\n"
             msg += f"👤 *اسم العميل:* {row.get('Customer_Name', row.get('Client', 'N/A'))}\n"
             msg += f"📞 *هاتف العميل:* {row.get('Customer_Phone', row.get('Client_Phone', 'N/A'))}\n"
-            msg += f"📍 *المنطقة:* {row.get('City', 'N/A')}\n"
-            msg += f"🏠 *العنوان التفصيلي:* {row.get('Address', row.get('Full_Address', 'N/A'))}\n"
+            msg += f"⏰ *الموعد/الفترة:* {time_slot}\n"
+            msg += f"📍 *المنطقة:* {city}\n"
+            msg += f"🏠 *العنوان:* {addr}\n"
+            msg += f"🗺️ *رابط الموقع (Google Maps):* {gmaps_link}\n"
             msg += f"❄️ *الجهاز:* {row.get('Appliance', row.get('Appliance_Type', 'N/A'))}\n"
             msg += f"🛠️ *نوع الخدمة:* {row.get('Service_Type', 'N/A')}\n"
             if 'Notes' in row and pd.notna(row['Notes']) and str(row['Notes']).strip() != "":
-                msg += f"📝 *ملاحظات/المشكلة:* {row['Notes']}\n"
+                msg += f"📝 *ملاحظات:* {row['Notes']}\n"
             msg += f"----------------------------------\n"
     else:
         msg = f"📱 *Daily Work Orders for {tech_name}*\n"
         msg += f"Total Jobs: {len(orders)}\n\n"
         for i, (_, row) in enumerate(orders.iterrows(), 1):
+            addr = row.get('Address', row.get('Full_Address', 'N/A'))
+            city = row.get('City', 'N/A')
+            gmaps_link = generate_google_maps_url(addr, city)
+            time_slot = row.get('Time_Slot', row.get('Preferred_Time', '09:00 AM - 05:00 PM'))
+
             msg += f"📋 *Job #{i}*\n"
             msg += f"🔹 *WO #:* {row.get('Work_Order', row.get('Order_Id', 'N/A'))}\n"
             msg += f"👤 *Customer:* {row.get('Customer_Name', row.get('Client', 'N/A'))}\n"
             msg += f"📞 *Phone:* {row.get('Customer_Phone', row.get('Client_Phone', 'N/A'))}\n"
-            msg += f"📍 *Area:* {row.get('City', 'N/A')}\n"
-            msg += f"🏠 *Full Address:* {row.get('Address', row.get('Full_Address', 'N/A'))}\n"
+            msg += f"⏰ *Time Slot:* {time_slot}\n"
+            msg += f"📍 *Area:* {city}\n"
+            msg += f"🏠 *Address:* {addr}\n"
+            msg += f"🗺️ *Google Maps:* {gmaps_link}\n"
             msg += f"❄️ *Appliance:* {row.get('Appliance', row.get('Appliance_Type', 'N/A'))}\n"
             msg += f"🛠️ *Service Type:* {row.get('Service_Type', 'N/A')}\n"
             if 'Notes' in row and pd.notna(row['Notes']) and str(row['Notes']).strip() != "":
@@ -280,6 +305,17 @@ def run_smart_dispatch(orders_df, tech_df, allow_overflow=True):
     orders['Distance_Type'] = orders['City'].apply(classify_distance) if 'City' in orders.columns else "Near"
     orders['Assigned_Tech'] = "Unassigned"
     
+    # Defaults for Revenue & Time Slot if missing
+    if 'Estimated_Revenue' not in orders.columns and 'Revenue' in orders.columns:
+        orders.rename(columns={'Revenue': 'Estimated_Revenue'}, inplace=True)
+    if 'Estimated_Revenue' not in orders.columns:
+        orders['Estimated_Revenue'] = 350.0  # Standard default service fee
+
+    if 'Time_Slot' not in orders.columns and 'Preferred_Time' in orders.columns:
+        orders.rename(columns={'Preferred_Time': 'Time_Slot'}, inplace=True)
+    if 'Time_Slot' not in orders.columns:
+        orders['Time_Slot'] = '09:00 AM - 12:00 PM'
+
     active_techs = tech_df[tech_df['status'] == 'Active'].copy()
     
     tracker = {}
@@ -297,16 +333,19 @@ def run_smart_dispatch(orders_df, tech_df, allow_overflow=True):
             'base_lng': eff_lng,
             'max_radius_km': float(row.get('max_radius_km', 25)),
             'experience': str(row.get('experience', 'Mid')),
-            'assigned': 0
+            'assigned': 0,
+            'projected_revenue': 0.0
         }
     
-    orders = orders.sort_values(by=['Distance_Type'], ascending=True)
+    # Sort orders by Time Slot first, then Far/Near distance
+    orders = orders.sort_values(by=['Time_Slot', 'Distance_Type'], ascending=[True, True])
     
     for idx, row in orders.iterrows():
         order_brand = row.get('Brand', None)
         order_appliance = str(row.get('Appliance', row.get('Appliance_Type', ''))).strip().lower()
         city_raw = str(row.get('City', '')).upper().strip()
         dist_type = row.get('Distance_Type', 'Near')
+        revenue = float(row.get('Estimated_Revenue', 350.0))
         target_vehicle = "Car" if dist_type == "Far" else "Motorcycle"
         
         order_coords = next((coords for k, coords in CITY_COORDS.items() if k in city_raw or city_raw in k), (30.0444, 31.2357))
@@ -341,12 +380,14 @@ def run_smart_dispatch(orders_df, tech_df, allow_overflow=True):
             best_tech = min(valid_candidates, key=lambda x: x[1])[0]
             orders.at[idx, 'Assigned_Tech'] = best_tech
             tracker[best_tech]['assigned'] += 1
+            tracker[best_tech]['projected_revenue'] += revenue
         elif allow_overflow:
             available = [t for t, info in tracker.items() if info['assigned'] < info['capacity']]
             if available:
                 best_tech = min(available, key=lambda t: tracker[t]['assigned'])
                 orders.at[idx, 'Assigned_Tech'] = best_tech
                 tracker[best_tech]['assigned'] += 1
+                tracker[best_tech]['projected_revenue'] += revenue
                 
     return orders, tracker
 
@@ -371,16 +412,29 @@ with nav_tab1:
     with col_file:
         uploaded_file = st.file_uploader(txt["upload_label"], type=["xlsx", "csv"])
         
-        # Download Sample Orders Template
+        # Download Sample Orders Template with Time Slot & Estimated Revenue
         sample_orders_df = pd.DataFrame([{
             "Work Order": "WO-9901",
             "Customer Name": "محمد السيد",
             "Customer Phone": "01012345678",
             "City": "Maadi",
             "Address": "Street 9, Building 14, Apt 3",
+            "Time Slot": "09:00 AM - 12:00 PM",
             "Appliance": "AC",
             "Service Type": "Maintenance",
+            "Estimated Revenue": 450.0,
             "Notes": "Compressor not cooling properly"
+        }, {
+            "Work Order": "WO-9902",
+            "Customer Name": "أحمد علي",
+            "Customer Phone": "01123456789",
+            "City": "Shorouk",
+            "Address": "Villa 12, District 3",
+            "Time Slot": "12:00 PM - 03:00 PM",
+            "Appliance": "Refrigerator",
+            "Service Type": "Repair",
+            "Estimated Revenue": 600.0,
+            "Notes": "Freon gas leak check"
         }])
         tmpl_output = io.BytesIO()
         with pd.ExcelWriter(tmpl_output, engine='openpyxl') as writer:
@@ -409,7 +463,7 @@ with nav_tab1:
             st.session_state['fuel_cost_per_km'] = fuel_cost_per_km
             
             st.subheader(txt["results_header"])
-            display_cols = [c for c in ['Work_Order', 'Customer_Name', 'Customer_Phone', 'City', 'Address', 'Appliance', 'Service_Type', 'Assigned_Tech'] if c in processed_orders.columns]
+            display_cols = [c for c in ['Work_Order', 'Customer_Name', 'Customer_Phone', 'City', 'Address', 'Time_Slot', 'Appliance', 'Service_Type', 'Estimated_Revenue', 'Assigned_Tech'] if c in processed_orders.columns]
             st.dataframe(processed_orders[display_cols], use_container_width=True)
             
             output = io.BytesIO()
@@ -467,12 +521,13 @@ with nav_tab2:
                 
             tech = row.get('Assigned_Tech', 'Unassigned')
             dist = row.get('Distance_Type', 'Near')
+            time_slot = row.get('Time_Slot', 'N/A')
             color = "blue" if dist == "Near" else "orange"
             
             folium.Marker(
                 location=coords,
-                popup=f"Order: {row.get('Work_Order', 'N/A')}<br>Tech: {tech}<br>Area: {city_raw}",
-                tooltip=f"{tech} ({city_raw})",
+                popup=f"Order: {row.get('Work_Order', 'N/A')}<br>Slot: {time_slot}<br>Tech: {tech}<br>Area: {city_raw}",
+                tooltip=f"{tech} ({time_slot})",
                 icon=folium.Icon(color=color, icon="wrench" if dist=="Far" else "motorcycle", prefix="fa")
             ).add_to(m)
             
@@ -481,7 +536,7 @@ with nav_tab2:
         st.info(txt["map_info"])
 
 # -------------------------------------------------------------------
-# TAB 3: WHATSAPP & DRIVER MOBILE PORTAL (FULL ORDER KNOWLEDGE)
+# TAB 3: WHATSAPP & DRIVER MOBILE PORTAL (WITH GOOGLE MAPS & TIME SLOTS)
 # -------------------------------------------------------------------
 with nav_tab3:
     st.header(txt["wa_header"])
@@ -491,24 +546,35 @@ with nav_tab3:
         
         for tech in techs:
             if tech == "Unassigned": continue
-            tech_orders = orders[orders['Assigned_Tech'] == tech]
+            tech_orders = orders[orders['Assigned_Tech'] == tech].copy()
             tech_match = tech_df[tech_df['name'] == tech]
             tech_info = tech_match.iloc[0] if not tech_match.empty else None
             phone = tech_info['phone'] if tech_info is not None else "201000000000"
             
+            # Generate Google Maps Links in the preview table
+            tech_orders['Google_Maps'] = tech_orders.apply(
+                lambda r: generate_google_maps_url(r.get('Address', ''), r.get('City', '')), axis=1
+            )
+            
             wa_url = generate_whatsapp_link(phone, tech, tech_orders, lang=selected_lang)
             
             with st.expander(f"👨‍🔧 {tech} ({len(tech_orders)} {txt['wa_jobs']})"):
-                st.markdown(f"**{txt['vehicle']}:** {tech_info['vehicle']} | **Appliance Specialty:** {tech_info.get('appliance_specialty', 'N/A')} | **{txt['phone']}:** {phone}")
+                st.markdown(f"**{txt['vehicle']}:** {tech_info['vehicle']} | **Specialty:** {tech_info.get('appliance_specialty', 'N/A')} | **{txt['phone']}:** {phone}")
                 st.markdown(f"[📲 **{txt['wa_send']}**]({wa_url})", unsafe_allow_html=True)
                 
-                show_cols = [c for c in ['Work_Order', 'Customer_Name', 'Customer_Phone', 'City', 'Address', 'Appliance', 'Service_Type', 'Notes'] if c in tech_orders.columns]
-                st.dataframe(tech_orders[show_cols], use_container_width=True)
+                show_cols = [c for c in ['Work_Order', 'Customer_Name', 'Customer_Phone', 'Time_Slot', 'City', 'Address', 'Appliance', 'Service_Type', 'Notes'] if c in tech_orders.columns]
+                st.dataframe(
+                    tech_orders[show_cols],
+                    column_config={
+                        "Google_Maps": st.column_config.LinkColumn("🗺️ Google Maps Link", display_text="Open Map")
+                    },
+                    use_container_width=True
+                )
     else:
         st.info(txt["no_data"])
 
 # -------------------------------------------------------------------
-# TAB 4: MANAGER ANALYTICS & COST ESTIMATOR
+# TAB 4: MANAGER ANALYTICS, TIME SLOTS & FINANCIALS
 # -------------------------------------------------------------------
 with nav_tab4:
     st.header(txt["analytics_header"])
@@ -517,35 +583,56 @@ with nav_tab4:
         tracker = st.session_state['tracker']
         fuel_cost_rate = st.session_state.get('fuel_cost_per_km', 4.5)
         
-        col1, col2, col3, col4 = st.columns(4)
         total_orders = len(orders)
-        assigned_count = len(orders[orders['Assigned_Tech'] != 'Unassigned'])
+        assigned_orders = orders[orders['Assigned_Tech'] != 'Unassigned']
+        assigned_count = len(assigned_orders)
         far_count = len(orders[orders['Distance_Type'] == 'Far'])
         
+        total_revenue = orders['Estimated_Revenue'].sum() if 'Estimated_Revenue' in orders.columns else assigned_count * 350.0
         est_distance = (far_count * 35) + ((total_orders - far_count) * 12)
         total_fuel_cost = est_distance * fuel_cost_rate
+        net_margin = total_revenue - total_fuel_cost
         
-        col1.metric(txt["total_jobs"], total_orders)
-        col2.metric(txt["allocated"], f"{(assigned_count/total_orders)*100:.1f}%")
-        col3.metric(txt["est_dist"], f"{est_distance} KM")
-        col4.metric(txt["est_fuel_cost"], f"{total_fuel_cost:,.0f} EGP")
+        total_capacity = sum([v['capacity'] for v in tracker.values()])
+        utilization = (assigned_count / total_capacity * 100) if total_capacity > 0 else 0
         
-        st.markdown(f"### {txt['heatmap']}")
-        capacity_df = pd.DataFrame([
-            {
-                "Technician": k, 
-                "Start Location": v['start_type'],
-                "Appliance Specialty": v['appliance_specialty'],
-                "Vehicle": v['vehicle'], 
-                "Brand": v['brand'], 
-                "Experience": v['experience'],
-                "Max Radius (KM)": v['max_radius_km'],
-                "Assigned": v['assigned'], 
-                "Capacity": v['capacity']
-            }
-            for k, v in tracker.items()
-        ])
-        st.dataframe(capacity_df, use_container_width=True)
+        # Row 1 KPIs
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric(txt["total_jobs"], total_orders)
+        c2.metric(txt["allocated"], f"{(assigned_count/total_orders)*100:.1f}%")
+        c3.metric(txt["est_dist"], f"{est_distance} KM")
+        c4.metric(txt["util_rate"], f"{utilization:.1f}%")
+        
+        # Row 2 Financial Metrics
+        st.markdown("---")
+        f1, f2, f3 = st.columns(3)
+        f1.metric(txt["total_rev"], f"{total_revenue:,.0f} EGP")
+        f2.metric(txt["est_fuel_cost"], f"{total_fuel_cost:,.0f} EGP")
+        f3.metric(txt["net_margin"], f"{net_margin:,.0f} EGP")
+        
+        st.markdown("---")
+        col_left, col_right = st.columns([2, 1])
+        
+        with col_left:
+            st.markdown(f"### {txt['heatmap']}")
+            capacity_df = pd.DataFrame([
+                {
+                    "Technician": k, 
+                    "Specialty": v['appliance_specialty'],
+                    "Vehicle": v['vehicle'], 
+                    "Assigned Jobs": v['assigned'], 
+                    "Capacity": v['capacity'],
+                    "Projected Rev (EGP)": f"{v['projected_revenue']:,.0f}"
+                }
+                for k, v in tracker.items()
+            ])
+            st.dataframe(capacity_df, use_container_width=True)
+
+        with col_right:
+            st.markdown("### ⏰ Time Slot Distribution")
+            if 'Time_Slot' in orders.columns:
+                slot_counts = orders['Time_Slot'].value_counts()
+                st.bar_chart(slot_counts)
     else:
         st.info(txt["run_analytics_first"])
 
