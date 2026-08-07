@@ -297,45 +297,61 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Download blank daily templates containing detailed vehicle specs, service types, and equipment categories, then upload your filled Excel files.")
+        st.markdown("Download blank daily bilingual templates, fill them out, and upload your separate Excel files for Technicians and Orders.")
         
         # --- BLANK TEMPLATE EXPORT SECTION ---
-        st.subheader("📥 Download Blank Daily Templates")
-        st.caption("Download these empty template sheets featuring full vehicle details (Car/Motorcycle & Brand), service scopes (Maintenance/Installation/Both), and appliance specializations.")
+        st.subheader("📥 Download Blank Daily Bilingual Templates")
+        st.caption("Download these empty template sheets featuring bilingual English/Arabic column headers (e.g., Name / الاسم) to fill out and track your daily schedules.")
         
         col_down1, col_down2 = st.columns(2)
         
         with col_down1:
             df_blank_techs = pd.DataFrame(columns=[
-                "Name", "Status", "Vehicle Type", "Vehicle Brand", 
-                "Service Scope", "Specialized Equipment / Appliances", 
-                "Capacity Units", "Current Load", "Latitude", "Longitude"
+                "Name / الاسم", 
+                "Status / الحالة", 
+                "Vehicle Type / نوع المركبة (Car/Motorcycle)", 
+                "Vehicle Brand / ماركة المركبة", 
+                "Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", 
+                "Specialized Equipment / المعدات والأجهزة التي يصلحها (e.g. TV / Refrigerator)", 
+                "Capacity Units / وحدة السعة", 
+                "Current Load / الحمل الحالي", 
+                "Latitude / خط العرض", 
+                "Longitude / خط الطول"
             ])
             buffer_tech = io.BytesIO()
             with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
                 df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
             
             st.download_button(
-                label="📥 Download Empty Technicians Template (.xlsx)",
+                label="📥 Download Empty Technicians Bilingual Template (.xlsx)",
                 data=buffer_tech.getvalue(),
-                file_name=f"Technicians_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                file_name=f"Technicians_Bilingual_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
             
         with col_down2:
             df_blank_orders = pd.DataFrame(columns=[
-                "Order ID", "Client", "Contact", "Address", "Priority", 
-                "Cargo", "Details", "Est Hours", "Weight Units", "Latitude", "Longitude"
+                "Order ID / رقم الطلب", 
+                "Client / العميل", 
+                "Contact / رقم التواصل", 
+                "Address / العنوان", 
+                "Priority / الأولوية", 
+                "Cargo / الشحنة", 
+                "Details / التفاصيل", 
+                "Est Hours / ساعات التقدير", 
+                "Weight Units / وحدات الوزن", 
+                "Latitude / خط العرض", 
+                "Longitude / خط الطول"
             ])
             buffer_order = io.BytesIO()
             with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
                 df_blank_orders.to_excel(writer, index=False, sheet_name='Orders')
                 
             st.download_button(
-                label="📥 Download Empty Orders Template (.xlsx)",
+                label="📥 Download Empty Orders Bilingual Template (.xlsx)",
                 data=buffer_order.getvalue(),
-                file_name=f"Orders_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
+                file_name=f"Orders_Bilingual_Template_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
@@ -359,16 +375,17 @@ with main_col:
                         st.session_state.assigned_orders = {}
                         
                         for idx, row in df_techs.iterrows():
-                            name = str(row.get("Name", row.get("Driver", row.get("Technician", f"Tech-{idx+1}")))).strip()
-                            status = str(row.get("Status", "Available")).strip()
-                            v_type = str(row.get("Vehicle Type", "Car")).strip()
-                            v_brand = str(row.get("Vehicle Brand", "Toyota")).strip()
-                            service_scope = str(row.get("Service Scope", "Both")).strip()
-                            specialty = str(row.get("Specialized Equipment / Appliances", "AC, Refrigerator")).strip()
-                            cap = int(row.get("Capacity", row.get("Capacity Units", 10)))
-                            load = int(row.get("Current Load", row.get("Load", 0)))
-                            lat = float(row.get("Lat", row.get("Latitude", 30.0444)))
-                            lon = float(row.get("Lon", row.get("Longitude", 31.2357)))
+                            # Support both bilingual column names or single English fallbacks
+                            name = str(row.get("Name / الاسم", row.get("Name", row.get("Technician", f"Tech-{idx+1}")))).strip()
+                            status = str(row.get("Status / الحالة", row.get("Status", "Available"))).strip()
+                            v_type = str(row.get("Vehicle Type / نوع المركبة (Car/Motorcycle)", row.get("Vehicle Type", "Car"))).strip()
+                            v_brand = str(row.get("Vehicle Brand / ماركة المركبة", row.get("Vehicle Brand", "Toyota"))).strip()
+                            service_scope = str(row.get("Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", row.get("Service Scope", "Both"))).strip()
+                            specialty = str(row.get("Specialized Equipment / المعدات والأجهزة التي يصلحها (e.g. TV / Refrigerator)", row.get("Specialty", "AC, Refrigerator"))).strip()
+                            cap = int(row.get("Capacity Units / وحدة السعة", row.get("Capacity", 10)))
+                            load = int(row.get("Current Load / الحمل الحالي", row.get("Current Load", 0)))
+                            lat = float(row.get("Latitude / خط العرض", row.get("Lat", 30.0444)))
+                            lon = float(row.get("Longitude / خط الطول", row.get("Lon", 31.2357)))
                             
                             st.session_state.drivers[name] = {
                                 "status": status,
@@ -383,7 +400,7 @@ with main_col:
                             }
                             st.session_state.assigned_orders[name] = []
                             
-                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with full vehicle and service profiles!")
+                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with full bilingual vehicle and service attributes!")
                 except Exception as e:
                     st.error(f"Error reading Technicians Excel file: {str(e)}")
 
@@ -400,17 +417,17 @@ with main_col:
                         st.session_state.unassigned_orders = []
                         
                         for idx, row in df_orders.iterrows():
-                            o_id = str(row.get("Order ID", row.get("ID", f"ORD-{1001+idx}"))).strip()
-                            client = str(row.get("Client", row.get("Company", "Corporate Client"))).strip()
-                            contact = str(row.get("Contact", row.get("Phone", "+201000000000"))).strip()
-                            address = str(row.get("Address", row.get("Location", "Cairo"))).strip()
-                            priority = str(row.get("Priority", "Medium")).strip()
-                            cargo = str(row.get("Cargo", row.get("Items", "Package Goods"))).strip()
-                            details = str(row.get("Details", row.get("Notes", "Standard delivery"))).strip()
-                            est_hrs = float(row.get("Est Hours", row.get("Hours", 2.0)))
-                            weight = int(row.get("Weight Units", row.get("Weight", 1)))
-                            lat = float(row.get("Lat", row.get("Latitude", 30.0444)))
-                            lon = float(row.get("Lon", row.get("Longitude", 31.2357)))
+                            o_id = str(row.get("Order ID / رقم الطلب", row.get("Order ID", f"ORD-{1001+idx}"))).strip()
+                            client = str(row.get("Client / العميل", row.get("Client", "Corporate Client"))).strip()
+                            contact = str(row.get("Contact / رقم التواصل", row.get("Contact", "+201000000000"))).strip()
+                            address = str(row.get("Address / العنوان", row.get("Address", "Cairo"))).strip()
+                            priority = str(row.get("Priority / الأولوية", row.get("Priority", "Medium"))).strip()
+                            cargo = str(row.get("Cargo / الشحنة", row.get("Cargo", "Package Goods"))).strip()
+                            details = str(row.get("Details / التفاصيل", row.get("Details", "Standard delivery"))).strip()
+                            est_hrs = float(row.get("Est Hours / ساعات التقدير", row.get("Est Hours", 2.0)))
+                            weight = int(row.get("Weight Units / وحدات الوزن", row.get("Weight Units", 1)))
+                            lat = float(row.get("Latitude / خط العرض", row.get("Lat", 30.0444)))
+                            lon = float(row.get("Longitude / خط الطول", row.get("Lon", 31.2357)))
                             
                             st.session_state.unassigned_orders.append({
                                 "id": o_id,
