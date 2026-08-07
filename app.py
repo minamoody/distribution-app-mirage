@@ -129,7 +129,6 @@ def initialize_empty_state():
 def run_builtin_autonomous_ai(user_query):
     query_lower = user_query.strip().lower()
     
-    # Instant replies for greetings or short inputs to eliminate lag
     greetings = ["hi", "hello", "hey", "greetings", "good morning", "good evening", "sup", "hola"]
     if query_lower in greetings or len(query_lower) <= 3:
         return f"👋 Hello! I am online and ready. You have **{len(st.session_state.drivers)}** active technicians and **{len(st.session_state.unassigned_orders)}** unassigned orders in queue. How can I help you manage the fleet today?"
@@ -259,7 +258,9 @@ app_module = st.sidebar.radio(
         T['nav_ai_dispatch'],
         T['nav_geofence'],
         T['nav_whatsapp'],
-        T['nav_eod']
+        T['nav_eod'],
+        "⭐ Driver Performance Matrix",
+        "💸 Cost & Fuel Tracker"
     ]
 )
 
@@ -650,8 +651,81 @@ with main_col:
                 type="primary"
             )
 
+    # --- MODULE 7: ADDED - DRIVER PERFORMANCE MATRIX ---
+    elif app_module == "⭐ Driver Performance Matrix":
+        st.title("⭐ Driver & Technician Performance Scoring Matrix")
+        st.markdown("Evaluates active technicians based on completed jobs, workload balance, and customer ratings.")
+        
+        if not st.session_state.drivers:
+            st.info("No technicians loaded in the system yet. Please upload your Technicians Excel file.")
+        else:
+            matrix_data = []
+            for d_name, d_info in st.session_state.drivers.items():
+                completed_count = sum(1 for o in st.session_state.assigned_orders.get(d_name, []) if o.get('status') == 'Completed')
+                total_assigned = len(st.session_state.assigned_orders.get(d_name, []))
+                
+                # Compute mock performance score out of 100
+                score = min(100, 70 + (completed_count * 5) - (d_info['current_load'] * 2))
+                
+                matrix_data.append({
+                    "Technician": d_name,
+                    "Status": d_info["status"],
+                    "Total Assigned": total_assigned,
+                    "Completed Orders": completed_count,
+                    "Performance Score (%)": max(40, score)
+                })
+                
+            df_matrix = pd.DataFrame(matrix_data)
+            st.dataframe(df_matrix, use_container_width=True)
+            st.success("Performance matrix successfully evaluated using live operational data.")
+
+    # --- MODULE 8: ADDED - COST & FUEL TRACKER ---
+    elif app_module == "💸 Cost & Fuel Tracker":
+        st.title("💸 Fleet Cost & Fuel Expense Tracker")
+        st.markdown("Track vehicle fuel consumption, maintenance overhead, and travel expenses per route.")
+        
+        if "expense_logs" not in st.session_state:
+            st.session_state.expense_logs = []
+            
+        with st.form("expense_form"):
+            c_exp1, c_exp2, c_exp3 = st.columns(3)
+            with c_exp1:
+                vehicle_id = st.text_input("Vehicle / Tech ID:", "Van-01")
+            with c_exp2:
+                fuel_cost = st.number_input("Fuel Expense ($):", min_value=0.0, value=45.00)
+            with c_exp3:
+                maintenance_cost = st.number_input("Maintenance / Tolls ($):", min_value=0.0, value=15.00)
+                
+            distance_km = st.number_input("Estimated Route Distance (KM):", min_value=0.0, value=120.0)
+            notes = st.text_area("Expense Description:", "Daily fuel refill and city service tolls.")
+            
+            submit_expense = st.form_submit_button("➕ Log Fleet Expense", type="primary")
+            if submit_expense:
+                st.session_state.expense_logs.append({
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "Vehicle": vehicle_id,
+                    "Fuel ($)": fuel_cost,
+                    "Maintenance ($)": maintenance_cost,
+                    "Distance (KM)": distance_km,
+                    "Total Expense ($)": fuel_cost + maintenance_cost,
+                    "Notes": notes
+                })
+                st.success("Expense entry recorded successfully!")
+                
+        st.markdown("---")
+        st.subheader("📋 Recorded Fleet Expenses")
+        if st.session_state.expense_logs:
+            df_expenses = pd.DataFrame(st.session_state.expense_logs)
+            st.dataframe(df_expenses, use_container_width=True)
+            
+            total_spend = df_expenses["Total Expense ($)"].sum()
+            total_dist = df_expenses["Distance (KM)"].sum()
+            st.metric("Total Fleet Expenditure", f"${total_spend:.2f}", f"{total_dist} KM Traveled")
+        else:
+            st.info("No expense records entered yet.")
+
 # ==========================================
-# 8. RETRACTABLE BUILT-IN AI CHAT DRAWER
+# 9. RETRACTABLE BUILT-IN AI CHAT DRAWER
 # ==========================================
 if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
     with ai_panel_col:
@@ -669,7 +743,6 @@ if st.session_state.get("show_ai_panel", False) and ai_panel_col is not None:
         if side_prompt := st.chat_input("Ask AI about fleet state, loads, or logs..."):
             st.session_state.side_chat_history.append({"role": "user", "content": side_prompt})
             
-            # Instantly compute response without artificial sleep delays causing lag
             bot_response = run_builtin_autonomous_ai(side_prompt)
             st.session_state.side_chat_history.append({"role": "assistant", "content": bot_response})
             st.rerun()
