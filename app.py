@@ -179,7 +179,7 @@ def run_builtin_autonomous_ai(user_query):
             return f"""### 🧠 AI Operational Recommendation
 1. **Immediate Action:** You have `{total_unassigned}` unassigned orders waiting. I recommend running the **Automated AI Dispatch Engine** to distribute shipments.
 2. **Optimal Driver Assignment:** Technician **{best_d}** currently holds the lowest load balance and is primed for the next high-priority dispatch batch.
-3. **Route Check:** Verify geofence radiuses in the GPS tab before dispatching remote client sites."""
+3. **Route Check:** Verify origin and destination routing before dispatching remote client sites."""
         else:
             return """### 🧠 AI Operational Recommendation
 * System is ready. Please upload your Technicians and Orders Excel sheets in the **Excel Upload Hub** to initialize automated routing and capacity tracking."""
@@ -192,18 +192,8 @@ I have processed your query: *"{user_query}"* against our live operational datab
 * **Recommendation:** You can execute automated batch assignments directly from the **Automated AI Dispatch Engine** tab or inspect individual driver logs in the **Field Portal**."""
 
 # ==========================================
-# 4. HELPER MATH & DISPATCH ENGINES
+# 4. HELPER FUNCTIONS & DISPATCH ENGINES
 # ==========================================
-def calculate_haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-         math.sin(dlon / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return round(R * c, 2)
-
 def run_automated_ai_dispatch(single_batch_only=False):
     if not st.session_state.unassigned_orders:
         return "No pending unassigned orders to dispatch."
@@ -297,11 +287,11 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown("Download blank daily bilingual templates, fill them out, and upload your separate Excel files for Technicians and Orders.")
+        st.markdown("Download blank daily bilingual templates (including the new Home/Starting Base column), fill them out, and upload your separate Excel files.")
         
         # --- BLANK TEMPLATE EXPORT SECTION ---
         st.subheader("📥 Download Blank Daily Bilingual Templates")
-        st.caption("Download these empty template sheets featuring bilingual English/Arabic column headers (e.g., Name / الاسم) to fill out and track your daily schedules.")
+        st.caption("Download these empty template sheets featuring bilingual English/Arabic column headers (e.g., Name / الاسم, Home / المنزل أو المركز الرئيسي) to fill out and track your daily schedules.")
         
         col_down1, col_down2 = st.columns(2)
         
@@ -309,14 +299,13 @@ with main_col:
             df_blank_techs = pd.DataFrame(columns=[
                 "Name / الاسم", 
                 "Status / الحالة", 
+                "Home / المنزل أو المركز الرئيسي (Starting Base)",
                 "Vehicle Type / نوع المركبة (Car/Motorcycle)", 
                 "Vehicle Brand / ماركة المركبة", 
                 "Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", 
                 "Specialized Equipment / المعدات والأجهزة التي يصلحها (e.g. TV / Refrigerator)", 
                 "Capacity Units / وحدة السعة", 
-                "Current Load / الحمل الحالي", 
-                "Latitude / خط العرض", 
-                "Longitude / خط الطول"
+                "Current Load / الحمل الحالي"
             ])
             buffer_tech = io.BytesIO()
             with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
@@ -340,9 +329,7 @@ with main_col:
                 "Cargo / الشحنة", 
                 "Details / التفاصيل", 
                 "Est Hours / ساعات التقدير", 
-                "Weight Units / وحدات الوزن", 
-                "Latitude / خط العرض", 
-                "Longitude / خط الطول"
+                "Weight Units / وحدات الوزن"
             ])
             buffer_order = io.BytesIO()
             with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
@@ -375,32 +362,29 @@ with main_col:
                         st.session_state.assigned_orders = {}
                         
                         for idx, row in df_techs.iterrows():
-                            # Support both bilingual column names or single English fallbacks
                             name = str(row.get("Name / الاسم", row.get("Name", row.get("Technician", f"Tech-{idx+1}")))).strip()
                             status = str(row.get("Status / الحالة", row.get("Status", "Available"))).strip()
+                            home_base = str(row.get("Home / المنزل أو المركز الرئيسي (Starting Base)", row.get("Home", row.get("Base", "Main Service Center")))).strip()
                             v_type = str(row.get("Vehicle Type / نوع المركبة (Car/Motorcycle)", row.get("Vehicle Type", "Car"))).strip()
                             v_brand = str(row.get("Vehicle Brand / ماركة المركبة", row.get("Vehicle Brand", "Toyota"))).strip()
                             service_scope = str(row.get("Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", row.get("Service Scope", "Both"))).strip()
                             specialty = str(row.get("Specialized Equipment / المعدات والأجهزة التي يصلحها (e.g. TV / Refrigerator)", row.get("Specialty", "AC, Refrigerator"))).strip()
                             cap = int(row.get("Capacity Units / وحدة السعة", row.get("Capacity", 10)))
                             load = int(row.get("Current Load / الحمل الحالي", row.get("Current Load", 0)))
-                            lat = float(row.get("Latitude / خط العرض", row.get("Lat", 30.0444)))
-                            lon = float(row.get("Longitude / خط الطول", row.get("Lon", 31.2357)))
                             
                             st.session_state.drivers[name] = {
                                 "status": status,
+                                "home_base": home_base,
                                 "vehicle_type": v_type,
                                 "vehicle_brand": v_brand,
                                 "service_scope": service_scope,
                                 "specialty": specialty,
                                 "capacity_units": cap,
-                                "current_load": load,
-                                "lat": lat,
-                                "lon": lon
+                                "current_load": load
                             }
                             st.session_state.assigned_orders[name] = []
                             
-                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with full bilingual vehicle and service attributes!")
+                        st.success(f"Loaded {len(st.session_state.drivers)} technician(s) successfully with home base and service profiles!")
                 except Exception as e:
                     st.error(f"Error reading Technicians Excel file: {str(e)}")
 
@@ -426,16 +410,12 @@ with main_col:
                             details = str(row.get("Details / التفاصيل", row.get("Details", "Standard delivery"))).strip()
                             est_hrs = float(row.get("Est Hours / ساعات التقدير", row.get("Est Hours", 2.0)))
                             weight = int(row.get("Weight Units / وحدات الوزن", row.get("Weight Units", 1)))
-                            lat = float(row.get("Latitude / خط العرض", row.get("Lat", 30.0444)))
-                            lon = float(row.get("Longitude / خط الطول", row.get("Lon", 31.2357)))
                             
                             st.session_state.unassigned_orders.append({
                                 "id": o_id,
                                 "client": client,
                                 "contact": contact,
                                 "address": address,
-                                "lat": lat,
-                                "lon": lon,
                                 "priority": priority,
                                 "cargo": cargo,
                                 "details": details,
@@ -470,6 +450,10 @@ with main_col:
                 st.metric(T['completed_jobs'], completed)
                 
             st.markdown("---")
+            
+            # Display Technician Home Base Info
+            tech_info = st.session_state.drivers.get(selected_driver, {})
+            st.info(f"🏠 **Starting Base / Home:** {tech_info.get('home_base', 'Main Center')} | 🚛 **Vehicle:** {tech_info.get('vehicle_type', 'Car')} ({tech_info.get('vehicle_brand', 'N/A')}) | 🔧 **Scope & Specialty:** {tech_info.get('service_scope', 'Both')} | {tech_info.get('specialty', 'General')}")
             
             if not driver_orders:
                 st.info(f"No active orders currently assigned to {selected_driver}.")
@@ -513,6 +497,7 @@ with main_col:
                         st.session_state.eod_excel_records.append({
                             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "Driver Name": selected_driver,
+                            "Home Base": tech_info.get('home_base', 'Main Center'),
                             "Order ID": current_ord['id'],
                             "Client": current_ord['client'],
                             "Notes": completion_notes
@@ -541,6 +526,7 @@ with main_col:
                 for d_name, d_info in st.session_state.drivers.items():
                     driver_data.append({
                         "Driver/Tech": d_name,
+                        "Home Base": d_info.get('home_base', 'Main Center'),
                         "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
                         "Scope": d_info.get('service_scope', 'Both'),
                         "Specialty": d_info.get('specialty', 'N/A'),
@@ -583,60 +569,17 @@ with main_col:
                             
                     status_box.success("🎉 All pending orders dispatched across 1-minute interval loops!")
 
-    # --- MODULE 4: GPS GEOFENCING ---
+    # --- MODULE 4: GEOFENCE & ROUTE MAP ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
-        st.markdown("Real-time GPS coordinate mapping and geofence tracking.")
+        st.markdown("Overview of active technician starting bases and client delivery sites.")
         
-        all_map_points = []
-        for d_name, orders in st.session_state.assigned_orders.items():
-            for o in orders:
-                all_map_points.append({
-                    "lat": o["lat"],
-                    "lon": o["lon"],
-                    "Driver": d_name,
-                    "Order": o["id"],
-                    "Client": o["client"]
-                })
-                
-        df_map_points = pd.DataFrame(all_map_points)
-        
-        col_map, col_sim = st.columns([2, 1])
-        
-        with col_map:
-            st.subheader("🗺️ Live GPS Map")
-            if not df_map_points.empty:
-                st.map(df_map_points, zoom=10, use_container_width=True)
-                st.dataframe(df_map_points, use_container_width=True)
-            else:
-                st.info("No active waypoints to display.")
-                
-        with col_sim:
-            st.subheader("📡 Live Driver Proximity Check")
-            if not df_map_points.empty:
-                selected_check_id = st.selectbox("Target Order for Check:", df_map_points["Order"].tolist())
-                
-                target_obj = None
-                for d_name, orders in st.session_state.assigned_orders.items():
-                    for o in orders:
-                        if o["id"] == selected_check_id:
-                            target_obj = o
-                            break
-                            
-                if target_obj:
-                    sim_lat = st.number_input("Simulated Driver Lat:", value=target_obj["lat"] + 0.002, format="%.4f")
-                    sim_lon = st.number_input("Simulated Driver Lon:", value=target_obj["lon"] - 0.001, format="%.4f")
-                    
-                    dist_km = calculate_haversine_distance(sim_lat, sim_lon, target_obj["lat"], target_obj["lon"])
-                    dist_m = int(dist_km * 1000)
-                    
-                    st.metric("Distance to Site", f"{dist_m} meters", delta=f"{dist_km} km")
-                    
-                    if dist_m <= 500:
-                        st.success("🟢 WITHIN GEOFENCE RADIUS (< 500m)")
-                        target_obj["status"] = "On Site"
-                    else:
-                        st.info("🔴 OUTSIDE GEOFENCE RADIUS")
+        if st.session_state.drivers:
+            st.subheader("🏠 Technician Starting Bases / Homes")
+            base_data = [{"Technician": d_name, "Home Base": info.get("home_base", "Center"), "Vehicle": f"{info.get('vehicle_type')} ({info.get('vehicle_brand')})"} for d_name, info in st.session_state.drivers.items()]
+            st.dataframe(pd.DataFrame(base_data), use_container_width=True)
+        else:
+            st.info("No technician data loaded.")
 
     # --- MODULE 5: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
@@ -722,7 +665,7 @@ with main_col:
                 type="primary"
             )
 
-    # --- MODULE 7: ADDED - DRIVER PERFORMANCE MATRIX ---
+    # --- MODULE 7: DRIVER PERFORMANCE MATRIX ---
     elif app_module == "⭐ Driver Performance Matrix":
         st.title("⭐ Driver & Technician Performance Scoring Matrix")
         st.markdown("Evaluates active technicians based on completed jobs, workload balance, and customer ratings.")
@@ -739,6 +682,7 @@ with main_col:
                 
                 matrix_data.append({
                     "Technician": d_name,
+                    "Home Base": d_info.get('home_base', 'Center'),
                     "Vehicle": f"{d_info.get('vehicle_type', 'Car')} ({d_info.get('vehicle_brand', 'N/A')})",
                     "Status": d_info["status"],
                     "Total Assigned": total_assigned,
@@ -750,7 +694,7 @@ with main_col:
             st.dataframe(df_matrix, use_container_width=True)
             st.success("Performance matrix successfully evaluated using live operational data.")
 
-    # --- MODULE 8: ADDED - COST & FUEL TRACKER ---
+    # --- MODULE 8: COST & FUEL TRACKER ---
     elif app_module == "💸 Cost & Fuel Tracker":
         st.title("💸 Fleet Cost & Fuel Expense Tracker")
         st.markdown("Track vehicle fuel consumption, maintenance overhead, and travel expenses per route.")
