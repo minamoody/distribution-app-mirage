@@ -46,6 +46,7 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 Driver & Tech Field Portal",
         "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine (1-Min Loop)",
         "nav_excel_import": "📁 Excel Upload Hub (Techs & Orders)",
+        "nav_analytics_chat": "💡 AI Data Analytics Chatbot",
         "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
@@ -74,7 +75,8 @@ TRANSLATIONS = {
         "geofence_header": "🎯 Smart Dispatch GPS & Geofence Simulator",
         "wa_header": "💬 WhatsApp Communication & Feedback Hub",
         "send_wa": "📲 Send WhatsApp Dispatch Notification",
-        "download_excel": "📥 Download Master EOD Report (.XLSX)"
+        "download_excel": "📥 Download Master EOD Report (.XLSX)",
+        "clear_session": "🧹 Clear All Session Data & Memory"
     },
     "AR": {
         "app_title": "منظومة التوزيع وإدارة الأسطول - معراج",
@@ -84,6 +86,7 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 بوابة السائقين والفنيين الميدانيين",
         "nav_ai_dispatch": "🤖 محرك التوزيع الآلي (دورة كل دقيقة)",
         "nav_excel_import": "📁 مركز رفع ملفات Excel (الفنيين والطلبات)",
+        "nav_analytics_chat": "💡 شات بوت تحليل البيانات والذكاء الاصطناعي",
         "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel ل نهاية اليوم والمؤشرات",
@@ -112,32 +115,38 @@ TRANSLATIONS = {
         "geofence_header": "🎯 محاكي النطاق الجغرافي والتتبع المباشر",
         "wa_header": "💬 مركز إشعارات الواتساب وتقييم العملاء",
         "send_wa": "📲 إرسال إشعار التوزيع عبر الواتساب",
-        "download_excel": "📥 تحميل تقرير نهاية اليوم Master Excel (.XLSX)"
+        "download_excel": "📥 تحميل تقرير نهاية اليوم Master Excel (.XLSX)",
+        "clear_session": "🧹 مسح كل البيانات المخزنة والذاكرة"
     }
 }
 
 # ==========================================
-# 2. SESSION STATE INITIALIZATION (STRICTLY EMPTY)
+# 2. SESSION STATE INITIALIZATION & RESET
 # ==========================================
 if "language" not in st.session_state:
     st.session_state.language = "EN"
 
 T = TRANSLATIONS[st.session_state.language]
 
-if "drivers" not in st.session_state:
+def initialize_empty_state():
     st.session_state.drivers = {}
-
-if "assigned_orders" not in st.session_state:
     st.session_state.assigned_orders = {}
-
-if "unassigned_orders" not in st.session_state:
     st.session_state.unassigned_orders = []
-
-if "eod_excel_records" not in st.session_state:
     st.session_state.eod_excel_records = []
-
-if "customer_ratings" not in st.session_state:
     st.session_state.customer_ratings = []
+    st.session_state.chat_history = [
+        {"role": "assistant", "content": "Hello! I am your AI Data Analytics Assistant. Ask me anything about Data Analytics, KPIs, predictive modeling, or query your currently uploaded distribution dataset!"}
+    ]
+
+if "drivers" not in st.session_state:
+    initialize_empty_state()
+
+# Global Session Clear Button in Sidebar
+st.sidebar.markdown("---")
+if st.sidebar.button(T['clear_session'], type="secondary", use_container_width=True):
+    initialize_empty_state()
+    st.sidebar.success("Session memory cleared successfully!")
+    st.rerun()
 
 # ==========================================
 # 3. HELPER MATH & DISPATCH ENGINES
@@ -159,7 +168,6 @@ def run_automated_ai_dispatch(single_batch_only=False):
     if not st.session_state.drivers:
         return "No technicians loaded! Please upload your Technicians Excel file first."
 
-    # Batch selection: 1 order per minute cycle or all pending
     orders_to_dispatch = [st.session_state.unassigned_orders[0]] if single_batch_only else list(st.session_state.unassigned_orders)
 
     dispatched_count = 0
@@ -177,20 +185,32 @@ def run_automated_ai_dispatch(single_batch_only=False):
 
     return f"Dispatch Cycle Completed: Successfully assigned {dispatched_count} order(s) at {datetime.now().strftime('%H:%M:%S')}."
 
-def run_gemini_summary_parser(raw_notes):
-    if not AI_AVAILABLE:
-        return f"• Action Taken: {raw_notes}\n• Status: Completed & Logged\n• Executive Summary: Order fulfilled successfully."
+def run_analytics_ai_response(user_query):
+    context_summary = {
+        "total_technicians_loaded": len(st.session_state.drivers),
+        "unassigned_orders_count": len(st.session_state.unassigned_orders),
+        "total_eod_logs": len(st.session_state.eod_excel_records),
+        "drivers_roster": list(st.session_state.drivers.keys())
+    }
     
+    if not AI_AVAILABLE:
+        return f"**Data Analytics Bot Response:**\n\nThank you for asking about: *'{user_query}'*\n\n**Current Dataset Insights:**\n- Active Technicians: {context_summary['total_technicians_loaded']}\n- Unassigned Orders: {context_summary['unassigned_orders_count']}\n- Completed EOD Logs: {context_summary['total_eod_logs']}\n\n*Note: Connect Gemini API Key to enable deep analytical reasoning and automated SQL/Python code generation!*"
+
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
-        Summarize this technician field completion note into 3 clean bullet points:
-        Note: "{raw_notes}"
+        You are an expert Data Analyst and Operations Analytics Consultant AI.
+        Answer the user's question with actionable insights, data analysis principles, or statistics logic.
+        
+        System Dataset Context:
+        {json.dumps(context_summary, indent=2)}
+        
+        User Question: "{user_query}"
         """
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Note: {raw_notes}"
+        return f"Analytics Engine Error: {str(e)}"
 
 def generate_whatsapp_url(phone_number, text_message):
     clean_phone = str(phone_number).replace("+", "").replace(" ", "").replace("-", "")
@@ -220,6 +240,7 @@ app_module = st.sidebar.radio(
         T['nav_excel_import'],
         T['nav_portal'],
         T['nav_ai_dispatch'],
+        T['nav_analytics_chat'],
         T['nav_geofence'],
         T['nav_whatsapp'],
         T['nav_eod']
@@ -238,7 +259,7 @@ else:
 # ==========================================
 if app_module == T['nav_excel_import']:
     st.title(T['nav_excel_import'])
-    st.markdown("Upload your separate Excel files for Technicians and Orders. All system data will be built strictly from your uploads.")
+    st.markdown("Upload your separate Excel files for Technicians and Orders. All system data will be built strictly from your uploaded files.")
     
     col_tech_file, col_order_file = st.columns(2)
     
@@ -326,10 +347,10 @@ if app_module == T['nav_excel_import']:
 # ==========================================
 elif app_module == T['nav_portal']:
     st.title(T['nav_portal'])
-    st.caption("Drill-down order inspection, notes entry, and Excel sync.")
+    st.caption("Drill-down order inspection, field notes entry, and Excel sync.")
     
     if not st.session_state.drivers:
-        st.warning("⚠️ No technicians currently in system. Please upload your Excel files in the 'Excel Upload Hub'.")
+        st.warning("⚠️ No technicians currently loaded. Please upload your Excel files in the 'Excel Upload Hub'.")
     else:
         col_driver_sel, m1, m2 = st.columns([2, 1, 1])
         
@@ -373,36 +394,30 @@ elif app_module == T['nav_portal']:
                 
             st.markdown("---")
             
-            st.subheader("📝 Order Completion & Excel Log Sync")
+            st.subheader("📝 Order Completion Notes")
             completion_notes = st.text_area(
                 "Technician Field Completion Notes:",
-                placeholder="Enter completion notes here..."
+                placeholder="Enter completion details..."
             )
             
             if st.button(T['submit_summary'], type="primary"):
                 if not completion_notes.strip():
-                    st.error("Please enter notes before submitting.")
+                    st.error("Please enter completion notes before submitting.")
                 else:
-                    with st.spinner("Processing report..."):
-                        ai_result = run_gemini_summary_parser(completion_notes)
-                        
-                        current_ord["status"] = "Completed"
-                        current_ord.setdefault("logs", []).append(completion_notes)
-                        
-                        st.session_state.eod_excel_records.append({
-                            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "Driver Name": selected_driver,
-                            "Order ID": current_ord['id'],
-                            "Client": current_ord['client'],
-                            "Notes": completion_notes,
-                            "AI Analysis": ai_result
-                        })
-                        
-                    st.success(f"Order {current_ord['id']} marked COMPLETED and logged to Master Excel!")
-                    st.info(ai_result)
+                    current_ord["status"] = "Completed"
+                    current_ord.setdefault("logs", []).append(completion_notes)
+                    
+                    st.session_state.eod_excel_records.append({
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Driver Name": selected_driver,
+                        "Order ID": current_ord['id'],
+                        "Client": current_ord['client'],
+                        "Notes": completion_notes
+                    })
+                    st.success(f"Order {current_ord['id']} marked COMPLETED!")
 
 # ==========================================
-# 7. MODULE: AUTOMATED AI DISPATCH ENGINE (1-MIN LOOP)
+# 7. MODULE: AUTOMATED AI DISPATCH ENGINE
 # ==========================================
 elif app_module == T['nav_ai_dispatch']:
     st.title(T['ai_dispatch_header'])
@@ -459,7 +474,6 @@ elif app_module == T['nav_ai_dispatch']:
                     res = run_automated_ai_dispatch(single_batch_only=True)
                     status_box.success(res)
                     
-                    # 1-minute delay between dispatches
                     for second in range(60):
                         time.sleep(1)
                         progress_bar.progress((second + 1) / 60)
@@ -467,7 +481,29 @@ elif app_module == T['nav_ai_dispatch']:
                 status_box.success("🎉 All pending orders dispatched across 1-minute interval loops!")
 
 # ==========================================
-# 8. MODULE: GPS GEOFENCING & FLEET MAP
+# 8. MODULE: AI DATA ANALYTICS CHATBOT
+# ==========================================
+elif app_module == T['nav_analytics_chat']:
+    st.title("💡 AI Data Analytics Chatbot")
+    st.markdown("Interactive AI Assistant for general Data Analytics, SQL, Python, metrics, and live fleet data query analysis.")
+    
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            
+    if prompt := st.chat_input("Ask about Data Analytics concepts or your uploaded dataset..."):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing query & datasets..."):
+                response_text = run_analytics_ai_response(prompt)
+                st.markdown(response_text)
+                st.session_state.chat_history.append({"role": "assistant", "content": response_text})
+
+# ==========================================
+# 9. MODULE: GPS GEOFENCING & FLEET MAP
 # ==========================================
 elif app_module == T['nav_geofence']:
     st.title(T['geofence_header'])
@@ -524,7 +560,7 @@ elif app_module == T['nav_geofence']:
                     st.warning("🔴 OUTSIDE GEOFENCE RADIUS")
 
 # ==========================================
-# 9. MODULE: WHATSAPP & CLIENT ALERTS
+# 10. MODULE: WHATSAPP & CLIENT ALERTS
 # ==========================================
 elif app_module == T['nav_whatsapp']:
     st.title(T['wa_header'])
@@ -575,7 +611,7 @@ elif app_module == T['nav_whatsapp']:
                 st.success("Feedback logged successfully!")
 
 # ==========================================
-# 10. MODULE: EXCEL EOD REPORTS & KPIS
+# 11. MODULE: EXCEL EOD REPORTS & KPIS
 # ==========================================
 elif app_module == T['nav_eod']:
     st.title(T['nav_eod'])
