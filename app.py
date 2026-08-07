@@ -9,7 +9,7 @@ import json
 import time
 
 # ==========================================
-# 0. DEPENDENCY & API SETUP (Zero-Config)
+# 0. BULLETPROOF API & DEPENDENCY SETUP
 # ==========================================
 try:
     import google.generativeai as genai
@@ -24,10 +24,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Hardcoded master API key for automatic server connection (accessible to all users)
-MASTER_API_KEY = "AIzaSyD..."
+# AUTOMATIC KEY RETRIEVAL (Checks Streamlit Secrets first, then falls back to hardcoded string)
+MASTER_API_KEY = ""
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        MASTER_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
 
-if HAS_GENAI and MASTER_API_KEY:
+if not MASTER_API_KEY:
+    # ⬇️ PASTE YOUR LITERAL GOOGLE AI STUDIO API KEY INSIDE THESE QUOTES IF NOT USING SECRETS ⬇️
+    MASTER_API_KEY = "YOUR_ACTUAL_GEMINI_API_KEY_HERE"
+
+if HAS_GENAI and MASTER_API_KEY and MASTER_API_KEY != "YOUR_ACTUAL_GEMINI_API_KEY_HERE":
     try:
         genai.configure(api_key=MASTER_API_KEY)
     except Exception:
@@ -143,10 +152,10 @@ def initialize_empty_state():
 # ==========================================
 def run_chatable_gemini_query(user_query):
     if not MASTER_API_KEY or MASTER_API_KEY == "YOUR_ACTUAL_GEMINI_API_KEY_HERE":
-        return "⚠️ Gemini API key is not configured in the script. Please update MASTER_API_KEY."
+        return "⚠️ Gemini API key is missing. Please replace 'YOUR_ACTUAL_GEMINI_API_KEY_HERE' in the script with your real Google AI Studio key."
 
     if not HAS_GENAI:
-        return "The `google-generativeai` package is not installed in the environment."
+        return "The `google-generativeai` package is not installed."
 
     try:
         genai.configure(api_key=MASTER_API_KEY)
@@ -177,29 +186,29 @@ def run_chatable_gemini_query(user_query):
             role = "user" if msg["role"] == "user" else "model"
             formatted_history.append({"role": role, "parts": [msg["content"]]})
 
-        generation_config = genai.types.GenerationConfig(
-            temperature=0.2,
-            top_p=0.95
-        )
+        # Safe fallback chain for model names to prevent version exceptions
+        models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"]
+        response_text = None
+        last_error = None
 
-        try:
-            model = genai.GenerativeModel(
-                "gemini-2.5-flash",
-                system_instruction=system_instruction,
-                generation_config=generation_config
-            )
-            chat = model.start_chat(history=formatted_history)
-            response = chat.send_message(user_query)
-            return response.text
-        except Exception:
-            model = genai.GenerativeModel(
-                "gemini-1.5-flash",
-                system_instruction=system_instruction,
-                generation_config=generation_config
-            )
-            chat = model.start_chat(history=formatted_history)
-            response = chat.send_message(user_query)
-            return response.text
+        for m_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(
+                    m_name,
+                    system_instruction=system_instruction
+                )
+                chat = model.start_chat(history=formatted_history)
+                response = chat.send_message(user_query)
+                response_text = response.text
+                break
+            except Exception as ex:
+                last_error = ex
+                continue
+
+        if response_text:
+            return response_text
+        else:
+            return f"Could not connect to Gemini models. Error details: {str(last_error)}"
 
     except Exception as e:
         return f"Could not process request: {str(e)}"
