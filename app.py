@@ -249,7 +249,7 @@ def run_automated_ai_dispatch(single_batch_only=False):
     return f"Dispatch Cycle Completed: Successfully assigned {dispatched_count} order(s) for {st.session_state.active_view_brand}."
 
 def generate_whatsapp_url(phone_number, text_message):
-    clean_phone = str(phone_number).replace("+", "", " ").replace("-", "")
+    clean_phone = str(phone_number).replace("+", "").replace(" ", "").replace("-", "")
     encoded_text = urllib.parse.quote(text_message)
     return f"https://wa.me/{clean_phone}?text={encoded_text}"
 
@@ -410,7 +410,6 @@ with main_col:
                             name = str(row.get("Name / الاسم", f"Tech-{idx+1}")).strip()
                             status = str(row.get("Status / الحالة", "Available")).strip()
                             home_base = str(row.get("Home / المركز الرئيسي (Starting Base)", "Cairo Center")).strip()
-                            # Default Cairo coordinates with small offsets if missing
                             lat = float(row.get("Latitude / خط العرض", 30.0444 + (idx * 0.02)))
                             lon = float(row.get("Longitude / خط الطول", 31.2357 + (idx * 0.02)))
                             v_type = str(row.get("Vehicle Type / نوع المركبة (Car/Motorcycle)", "Car")).strip()
@@ -508,7 +507,6 @@ with main_col:
                 
                 completion_notes = st.text_area("Enter field notes or repair summary:", placeholder="Describe service rendered...")
                 
-                # --- FEATURE 3 ADDITION: Photo Proof & Digital Sign-off ---
                 col_photo, col_sign = st.columns(2)
                 with col_photo:
                     uploaded_photos = st.file_uploader(
@@ -583,7 +581,7 @@ with main_col:
                         time.sleep(1)
                     status_box.success("🎉 All pending orders dispatched!")
 
-    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (FEATURE 2) ---
+    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (FIXED WITH BULLETPROOF CIRCLE MARKERS) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
         st.markdown(f"Live Folium Map centered on Cairo, Egypt, tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
@@ -591,39 +589,51 @@ with main_col:
         # Create Folium map centered in Cairo
         cairo_map = folium.Map(location=[30.0444, 31.2357], zoom_start=11, tiles="CartoDB positron")
         
-        # Plot Technicians
+        # Plot Technicians (Blue Circle Markers)
         for t_name, t_info in store["technicians"].items():
             lat = t_info.get("lat", 30.0444)
             lon = t_info.get("lon", 31.2357)
-            folium.Marker(
+            folium.CircleMarker(
                 location=[lat, lon],
+                radius=9,
                 popup=f"<b>Technician:</b> {t_name}<br><b>Base:</b> {t_info.get('home_base')}<br><b>Load:</b> {t_info['current_load']}/{t_info['capacity_units']}",
                 tooltip=f"Tech: {t_name}",
-                icon=folium.Icon(color="blue", icon="wrench", prefix="fa")
+                color="blue",
+                fill=True,
+                fill_color="blue",
+                fill_opacity=0.8
             ).add_to(cairo_map)
             
-        # Plot Unassigned Orders
+        # Plot Unassigned Orders (Red Circle Markers)
         for ord_item in store["unassigned_orders"]:
             lat = ord_item.get("lat", 30.0)
             lon = ord_item.get("lon", 31.2)
-            folium.Marker(
+            folium.CircleMarker(
                 location=[lat, lon],
+                radius=8,
                 popup=f"<b>Unassigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Priority:</b> {ord_item['priority']}",
                 tooltip=f"Order: {ord_item['id']}",
-                icon=folium.Icon(color="red", icon="shopping-cart", prefix="fa")
+                color="red",
+                fill=True,
+                fill_color="red",
+                fill_opacity=0.8
             ).add_to(cairo_map)
             
-        # Plot Assigned Orders
+        # Plot Assigned Orders (Orange Circle Markers)
         for t_name, assigned_list in store["assigned_orders"].items():
             for ord_item in assigned_list:
                 if ord_item.get("status") != "Completed":
                     lat = ord_item.get("lat", 30.0)
                     lon = ord_item.get("lon", 31.2)
-                    folium.Marker(
+                    folium.CircleMarker(
                         location=[lat, lon],
+                        radius=8,
                         popup=f"<b>Assigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Tech:</b> {t_name}",
                         tooltip=f"Active: {ord_item['id']}",
-                        icon=folium.Icon(color="orange", icon="truck", prefix="fa")
+                        color="orange",
+                        fill=True,
+                        fill_color="orange",
+                        fill_opacity=0.8
                     ).add_to(cairo_map)
 
         # Render map in Streamlit using streamlit-folium
