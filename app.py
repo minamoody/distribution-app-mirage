@@ -196,16 +196,20 @@ def get_active_store():
         st.session_state.brands_storage = {}
         
     if target_brand not in st.session_state.brands_storage:
-        st.session_state.brands_storage[target_brand] = {
-            "technicians": {},
-            "assigned_orders": {},
-            "unassigned_orders": [],
-            "eod_excel_records": [],
-            "customer_ratings": [],
-            "expense_logs": [],
-            "scanner_history": []
-        }
-    return st.session_state.brands_storage[target_brand]
+        st.session_state.brands_storage[target_brand] = {}
+        
+    store = st.session_state.brands_storage[target_brand]
+    for key, default_val in [
+        ("technicians", {}),
+        ("assigned_orders", {}),
+        ("unassigned_orders", []),
+        ("eod_excel_records", []),
+        ("customer_ratings", []),
+        ("expense_logs", []),
+        ("scanner_history", [])
+    ]:
+        store.setdefault(key, default_val)
+    return store
 
 @st.cache_data
 def smart_geocode_address(address_str, index=0, default_lat=30.0444, default_lon=31.2357):
@@ -256,7 +260,6 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
     """Advanced AI cognitive scanner that thinks, reasons across multi-parameters, and extracts clean structured data."""
     lines = [line.strip() for line in raw_input_text.split('\n') if line.strip()]
     
-    # Cognitive reasoning heuristics
     extracted_client = "Corporate Partner"
     extracted_contact = "+201000000000"
     extracted_address = "Cairo, Egypt"
@@ -280,7 +283,7 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
     elif "repair" in combined_text or "fix" in combined_text or "issue" in combined_text:
         extracted_service = "Corrective Repair"
 
-    if "ac" in combined_text or "air" in combined_text or "hvac" in combined_text or "tclimate" in combined_text:
+    if "ac" in combined_text or "air" in combined_text or "hvac" in combined_text or "climate" in combined_text:
         extracted_device = "HVAC / Climate Control Unit"
     elif "fridge" in combined_text or "refrigerator" in combined_text or "cooling" in combined_text:
         extracted_device = "Commercial Refrigeration"
