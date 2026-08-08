@@ -57,7 +57,6 @@ TRANSLATIONS = {
         "priority": "Priority Level",
         "status": "Order Status",
         "cargo_details": "Cargo / Item Manifest",
-        "est_hours": "Est. Completion Time",
         "submit_summary": "🚀 Submit Log, Photos & Sign-off to EOD Excel",
         "ai_dispatch_header": "🤖 Automated Built-in AI Dispatch Engine (Brand-Isolated)",
         "ai_dispatch_desc": "Evaluates technician capacity strictly within your authenticated brand scope.",
@@ -93,7 +92,6 @@ TRANSLATIONS = {
         "priority": "مستوى الأولوية",
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
-        "est_hours": "الوقت المتوقع للإنجاز",
         "submit_summary": "🚀 إرسال التقرير، الصور، وتوقيع العميل لمزامنة Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الذكي المدمج (معزول حسب البراند)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات الخاصة بالبراند الحالي فقط على الفنيين التابعين له.",
@@ -418,8 +416,8 @@ with main_col:
         with col_down2:
             df_blank_orders = pd.DataFrame(columns=[
                 "Order ID / رقم الطلب", "Client / العميل", "Contact / رقم التواصل", "Address / العنوان", 
-                "Latitude / خط العرض", "Longitude / خط الطول",
-                "Priority / الأولوية", "Cargo / الشحنة", "Details / التفاصيل", "Est Hours / ساعات التقدير", "Weight Units / الوزن"
+                "Service Type / نوع الخدمة", "Device Type / نوع الجهاز",
+                "Priority / الأولوية", "Cargo / الشحنة", "Details / التفاصيل", "Weight Units / الوزن"
             ])
             buffer_order = io.BytesIO()
             with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
@@ -511,12 +509,11 @@ with main_col:
                         col_client = find_column_match(df_orders.columns, ["client", "customer", "name", "العميل"])
                         col_contact = find_column_match(df_orders.columns, ["contact", "phone", "mobile", "رقم التواصل", "تليفون"])
                         col_address = find_column_match(df_orders.columns, ["address", "location", "site", "العنوان", "مكان", "street", "area"])
-                        col_lat = find_column_match(df_orders.columns, ["lat", "latitude", "خط العرض"])
-                        col_lon = find_column_match(df_orders.columns, ["lon", "lng", "longitude", "خط الطول"])
+                        col_service_type = find_column_match(df_orders.columns, ["service type", "service", "نوع الخدمة"])
+                        col_device_type = find_column_match(df_orders.columns, ["device type", "device", "نوع الجهاز"])
                         col_priority = find_column_match(df_orders.columns, ["priority", "urgency", "الأولوية"])
                         col_cargo = find_column_match(df_orders.columns, ["cargo", "item", "product", "الشحنة", "المنتج"])
                         col_details = find_column_match(df_orders.columns, ["detail", "note", "desc", "التفاصيل"])
-                        col_est = find_column_match(df_orders.columns, ["hour", "time", "est", "ساعات"])
                         col_weight = find_column_match(df_orders.columns, ["weight", "unit", "الوزن"])
                         
                         for idx, row in df_orders.iterrows():
@@ -530,20 +527,15 @@ with main_col:
                             contact_num = str(row[col_contact]).strip() if col_contact and pd.notna(row[col_contact]) else "+201000000000"
                             address_str = str(row[col_address]).strip() if col_address and pd.notna(row[col_address]) else "Cairo, Egypt"
                             
-                            # Universal address scanning & auto-geocoding
-                            if col_lat and col_lon and pd.notna(row.get(col_lat)) and pd.notna(row.get(col_lon)):
-                                try:
-                                    lat = float(row[col_lat])
-                                    lon = float(row[col_lon])
-                                except:
-                                    lat, lon = smart_geocode_address(address_str, idx)
-                            else:
-                                lat, lon = smart_geocode_address(address_str, idx)
+                            service_type = str(row[col_service_type]).strip() if col_service_type and pd.notna(row[col_service_type]) else "Maintenance"
+                            device_type = str(row[col_device_type]).strip() if col_device_type and pd.notna(row[col_device_type]) else "Standard Device"
+                            
+                            # Universal address scanning & auto-geocoding (since lat/lon columns removed from template)
+                            lat, lon = smart_geocode_address(address_str, idx)
                                 
                             priority = str(row[col_priority]).strip() if col_priority and pd.notna(row[col_priority]) else "Medium"
                             cargo = str(row[col_cargo]).strip() if col_cargo and pd.notna(row[col_cargo]) else "Package Goods"
                             details = str(row[col_details]).strip() if col_details and pd.notna(row[col_details]) else "Standard delivery"
-                            est_hrs = float(row[col_est]) if col_est and pd.notna(row[col_est]) else 2.0
                             weight_u = int(row[col_weight]) if col_weight and pd.notna(row[col_weight]) else 1
                             
                             store["unassigned_orders"].append({
@@ -553,10 +545,11 @@ with main_col:
                                 "address": address_str,
                                 "lat": lat,
                                 "lon": lon,
+                                "service_type": service_type,
+                                "device_type": device_type,
                                 "priority": priority,
                                 "cargo": cargo,
                                 "details": details,
-                                "est_hours": est_hrs,
                                 "weight_units": weight_u
                             })
                             
@@ -601,9 +594,10 @@ with main_col:
                     c1.markdown(f"**{T['contact_num']}:** `{current_ord['contact']}`")
                     c2.markdown(f"**{T['priority']}:** `{current_ord['priority']}`")
                     c2.markdown(f"**{T['status']}:** `{current_ord['status']}`")
-                    c3.markdown(f"**{T['cargo_details']}:** {current_ord['cargo']}")
-                    c3.markdown(f"**{T['est_hours']}:** {current_ord['est_hours']} hrs")
+                    c3.markdown(f"**Service Type:** {current_ord.get('service_type', 'N/A')}")
+                    c3.markdown(f"**Device Type:** {current_ord.get('device_type', 'N/A')}")
                     st.markdown(f"**{T['address']}:** {current_ord['address']}")
+                    st.markdown(f"**{T['cargo_details']}:** {current_ord['cargo']}")
                     
                 st.markdown("---")
                 st.subheader("📝 Technician Completion Notes & Proof of Work")
@@ -638,6 +632,8 @@ with main_col:
                             "Technician Name": selected_tech,
                             "Order ID": current_ord['id'],
                             "Client": current_ord['client'],
+                            "Service Type": current_ord.get('service_type', 'N/A'),
+                            "Device Type": current_ord.get('device_type', 'N/A'),
                             "Notes": completion_notes,
                             "Photos Uploaded": f"{photo_count} file(s)",
                             "Client Sign-off": client_signer_name
@@ -653,7 +649,7 @@ with main_col:
         with col_unassigned:
             st.subheader(T['unassigned_orders'])
             if store["unassigned_orders"]:
-                st.dataframe(pd.DataFrame(store["unassigned_orders"])[["id", "client", "priority", "cargo"]], use_container_width=True)
+                st.dataframe(pd.DataFrame(store["unassigned_orders"])[["id", "client", "service_type", "device_type", "priority"]], use_container_width=True)
             else:
                 st.success("🎉 No unassigned orders pending!")
                 
@@ -739,12 +735,13 @@ with main_col:
             lat = ord_item.get("lat", 30.0444)
             lon = ord_item.get("lon", 31.2357)
             popup_html = f"""
-            <div style="font-family: Arial; font-size: 13px; width: 180px;">
+            <div style="font-family: Arial; font-size: 13px; width: 190px;">
                 <b>📦 Order ID:</b> {ord_item['id']}<br>
                 <b>🏢 Client:</b> {ord_item['client']}<br>
                 <b>📍 Address:</b> {ord_item['address']}<br>
-                <b>⚡ Priority:</b> {ord_item['priority']}<br>
-                <b>📋 Cargo:</b> {ord_item['cargo']}
+                <b>🔧 Service:</b> {ord_item.get('service_type', 'N/A')}<br>
+                <b>💻 Device:</b> {ord_item.get('device_type', 'N/A')}<br>
+                <b>⚡ Priority:</b> {ord_item['priority']}
             </div>
             """
             folium.CircleMarker(
@@ -765,10 +762,12 @@ with main_col:
                     lat = ord_item.get("lat", 30.0444)
                     lon = ord_item.get("lon", 31.2357)
                     popup_html = f"""
-                    <div style="font-family: Arial; font-size: 13px; width: 180px;">
+                    <div style="font-family: Arial; font-size: 13px; width: 190px;">
                         <b>🚚 Active Order:</b> {ord_item['id']}<br>
                         <b>🏢 Client:</b> {ord_item['client']}<br>
                         <b>📍 Address:</b> {ord_item['address']}<br>
+                        <b>🔧 Service:</b> {ord_item.get('service_type', 'N/A')}<br>
+                        <b>💻 Device:</b> {ord_item.get('device_type', 'N/A')}<br>
                         <b>👨‍🔧 Assigned Tech:</b> {t_name}
                     </div>
                     """
@@ -810,7 +809,7 @@ with main_col:
             c_wa1, c_wa2 = st.columns(2)
             with c_wa1:
                 eta = st.slider("Estimated Arrival (Minutes):", 10, 120, 30)
-                default_text = f"Hello {wa_target['client']}, your shipment ({wa_target['id']} - {wa_target['cargo']}) is en route. ETA: {eta} mins."
+                default_text = f"Hello {wa_target['client']}, your service order ({wa_target['id']} - {wa_target.get('service_type', 'Service')} for {wa_target.get('device_type', 'Device')}) is en route. ETA: {eta} mins."
                 custom_msg = st.text_area("Message Body:", value=default_text)
                 wa_link = generate_whatsapp_url(wa_target["contact"], custom_msg)
                 st.markdown(f'<a href="{wa_link}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:bold; cursor:pointer;">{T["send_wa"]}</button></a>', unsafe_allow_html=True)
