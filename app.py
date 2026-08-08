@@ -130,6 +130,7 @@ st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("is_master", False)
 st.session_state.setdefault("logged_in_brand", None)
 st.session_state.setdefault("active_view_brand", list(BRANDS_REGISTRY.keys())[0])
+st.session_state.setdefault("master_approvals", {})
 
 if "brands_storage" not in st.session_state or not isinstance(st.session_state.brands_storage, dict):
     st.session_state.brands_storage = {}
@@ -443,24 +444,42 @@ if selected_lang != st.session_state.language:
 
 st.sidebar.markdown("---")
 
+# Define standard and master-restricted modules (Analytics & Logistics)
+base_modules = [
+    T['nav_excel_import'],
+    T['nav_ai_scanner'],
+    T['nav_portal'],
+    T['nav_whatsapp'],
+    T['nav_rag'],
+    T['nav_predictive'],
+    T['nav_payroll']
+]
+
+restricted_modules = [
+    T['nav_ai_dispatch'],
+    T['nav_geofence'],
+    T['nav_routing'],
+    T['nav_analytics'],
+    T['nav_eod'],
+    "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين",
+    "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود"
+]
+
+available_modules = list(base_modules)
+current_brand = st.session_state.logged_in_brand
+
+if st.session_state.is_master:
+    available_modules.extend(restricted_modules)
+    available_modules.append("🔑 Master Approval Management / إدارة صلاحيات البراندات")
+else:
+    approved_list = st.session_state.master_approvals.get(current_brand, [])
+    for rm in restricted_modules:
+        if rm in approved_list:
+            available_modules.append(rm)
+
 app_module = st.sidebar.radio(
     T['nav_menu'],
-    [
-        T['nav_excel_import'],
-        T['nav_ai_scanner'],
-        T['nav_portal'],
-        T['nav_ai_dispatch'],
-        T['nav_geofence'],
-        T['nav_predictive'],
-        T['nav_routing'],
-        T['nav_rag'],
-        T['nav_payroll'],
-        T['nav_analytics'],
-        T['nav_whatsapp'],
-        T['nav_eod'],
-        "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين",
-        "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود"
-    ]
+    available_modules
 )
 
 st.sidebar.markdown("---")
@@ -510,8 +529,35 @@ else:
 with main_col:
     store = get_active_store()
 
+    # --- MASTER APPROVAL MANAGEMENT PANEL ---
+    if app_module == "🔑 Master Approval Management / إدارة صلاحيات البراندات":
+        if not st.session_state.is_master:
+            st.error("Access Denied: Master Key required.")
+        else:
+            st.title("🔑 Master Approval Management Dashboard")
+            st.markdown("Grant or revoke access for individual brand administrators to restricted Analytics and Logistics modules.")
+            
+            for brand_k, brand_info in BRANDS_REGISTRY.items():
+                st.subheader(f"🏢 Brand: {brand_info['display_name']} (`{brand_k}`)")
+                current_approvals = st.session_state.master_approvals.get(brand_k, [])
+                
+                selected_approvals = []
+                col_app1, col_app2 = st.columns(2)
+                
+                half_len = len(restricted_modules) // 2
+                for idx, mod in enumerate(restricted_modules):
+                    is_checked = mod in current_approvals
+                    target_col = col_app1 if idx < half_len else col_app2
+                    with target_col:
+                        if st.checkbox(mod, value=is_checked, key=f"approval_{brand_k}_{idx}"):
+                            selected_approvals.append(mod)
+                
+                st.session_state.master_approvals[brand_k] = selected_approvals
+                st.markdown("---")
+            st.success("Approval permissions updated instantly across sessions!")
+
     # --- MODULE 1: EXCEL UPLOAD HUB ---
-    if app_module == T['nav_excel_import']:
+    elif app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
         st.markdown(f"High-speed accelerated data ingestion for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
         
@@ -723,7 +769,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                         })
                         st.success(f"Order {current_ord['id']} marked COMPLETED with digital sign-off!")
 
-    # --- MODULE 4: AUTOMATED AI DISPATCH ENGINE ---
+    # --- MODULE 4: AUTOMATED AI DISPATCH ENGINE (Restricted) ---
     elif app_module == T['nav_ai_dispatch']:
         st.title(T['ai_dispatch_header'])
         st.markdown(T['ai_dispatch_desc'])
@@ -763,7 +809,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                         time.sleep(0.3)
                     status_box.success("🎉 All pending orders dispatched successfully!")
 
-    # --- MODULE 5: INTERACTIVE LIVE MAP & GPS FLEET TRACKING ---
+    # --- MODULE 5: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (Restricted) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
         st.markdown(f"Live Interactive Fleet Map tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
@@ -836,7 +882,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                 st.info(rec)
                 store["equipment_telemetry"].append({"Hours": op_hours, "Vibration": vibration, "Risk Probability (%)": prob})
 
-    # --- MODULE 7: HEURISTIC TSP ROUTE OPTIMIZER ---
+    # --- MODULE 7: HEURISTIC TSP ROUTE OPTIMIZER (Restricted) ---
     elif app_module == T['nav_routing']:
         st.title(T['nav_routing'])
         st.markdown("Compute the mathematically optimized Traveling Salesperson route for active service orders in Cairo.")
@@ -887,7 +933,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
         if store["payroll_logs"]:
             st.dataframe(pd.DataFrame(store["payroll_logs"]), use_container_width=True)
 
-    # --- MODULE 10: ENTERPRISE PLOTLY ANALYTICS DASHBOARD ---
+    # --- MODULE 10: ENTERPRISE PLOTLY ANALYTICS DASHBOARD (Restricted) ---
     elif app_module == T['nav_analytics']:
         st.title(T['nav_analytics'])
         st.markdown("Real-time visual analytics dashboard powered by Plotly for enterprise performance tracking.")
@@ -932,7 +978,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                     store["customer_ratings"].append({"Order ID": wa_target["id"], "Rating": rating, "Comments": comments})
                     st.success("Feedback logged!")
 
-    # --- MODULE 12: EOD REPORTS & KPIS ---
+    # --- MODULE 12: EOD REPORTS & KPIS (Restricted) ---
     elif app_module == T['nav_eod']:
         st.title(T['nav_eod'])
         k1, k2, k3 = st.columns(3)
@@ -958,7 +1004,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary"
             )
 
-    # --- MODULE 13: PERFORMANCE MATRIX ---
+    # --- MODULE 13: PERFORMANCE MATRIX (Restricted) ---
     elif app_module == "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين":
         st.title("⭐ Technician Performance Scoring Matrix")
         if not store["technicians"]:
@@ -974,7 +1020,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                 })
             st.dataframe(pd.DataFrame(matrix_data), use_container_width=True)
 
-    # --- MODULE 14: COST & FUEL TRACKER ---
+    # --- MODULE 14: COST & FUEL TRACKER (Restricted) ---
     elif app_module == "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود":
         st.title("💸 Fleet Cost & Fuel Expense Tracker")
         with st.form("expense_form"):
