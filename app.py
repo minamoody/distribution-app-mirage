@@ -232,16 +232,13 @@ def smart_geocode_address(address_str, index=0, default_lat=30.0444, default_lon
         "ain shams": (30.1333, 31.3333),
         "matareya": (30.1333, 31.3000),
         "shoubra": (30.0833, 31.2500),
-        "helwan": (29.8500, 31.3333),
-        "rehab": (30.0617, 31.4933)
+        "helwan": (29.8500, 31.3333)
     }
     
     for keyword, coords in cairo_districts.items():
         if keyword in text:
-            # Apply slight jitter so multiple points in the same district don't overlap completely
             return coords[0] + (index * 0.0015), coords[1] + (index * 0.0015)
             
-    # Fallback dispersion around Cairo center
     return default_lat + (index * 0.008), default_lon + (index * 0.008)
 
 def find_column_match(df_columns, possible_keywords):
@@ -470,7 +467,6 @@ with main_col:
                             status = str(row[col_t_status]).strip() if col_t_status and pd.notna(row[col_t_status]) else "Available"
                             home_base = str(row[col_t_home]).strip() if col_t_home and pd.notna(row[col_t_home]) else "Cairo Center"
                             
-                            # Geocode or read lat/lon
                             if col_t_lat and col_t_lon and pd.notna(row.get(col_t_lat)) and pd.notna(row.get(col_t_lon)):
                                 try:
                                     lat = float(row[col_t_lat])
@@ -499,7 +495,7 @@ with main_col:
                     st.error(f"Error reading technician file: {str(e)}")
 
         with col_order_file:
-            st.subheader("2. Upload Orders File (Preserves exact Work Order IDs)")
+            st.subheader("2. Upload Orders File (Strictly preserves exact IDs like apeg...)")
             order_file = st.file_uploader("Upload Orders Excel (.xlsx):", type=["xlsx", "xls"], key=f"order_up_{st.session_state.active_view_brand}")
             
             if order_file is not None:
@@ -510,11 +506,11 @@ with main_col:
                     if st.button("Load Orders into Brand Queue", type="primary"):
                         store["unassigned_orders"] = []
                         
-                        # Dynamically find column names to prevent changing order IDs (like apeg...)
+                        # Find ID column without modifying or replacing values
                         col_id = find_column_match(df_orders.columns, ["order id", "work order", "wo", "apeg", "id", "ticket", "request", "رقم"])
                         col_client = find_column_match(df_orders.columns, ["client", "customer", "name", "العميل"])
                         col_contact = find_column_match(df_orders.columns, ["contact", "phone", "mobile", "رقم التواصل", "تليفون"])
-                        col_address = find_column_match(df_orders.columns, ["address", "location", "site", "العنوان", "مكان"])
+                        col_address = find_column_match(df_orders.columns, ["address", "location", "site", "العنوان", "مكان", "street", "area"])
                         col_lat = find_column_match(df_orders.columns, ["lat", "latitude", "خط العرض"])
                         col_lon = find_column_match(df_orders.columns, ["lon", "lng", "longitude", "خط الطول"])
                         col_priority = find_column_match(df_orders.columns, ["priority", "urgency", "الأولوية"])
@@ -524,15 +520,17 @@ with main_col:
                         col_weight = find_column_match(df_orders.columns, ["weight", "unit", "الوزن"])
                         
                         for idx, row in df_orders.iterrows():
-                            # Strictly preserve exact ID string from Excel (e.g. apeg12345)
-                            raw_id = row[col_id] if col_id and pd.notna(row[col_id]) else f"ORD-{1001+idx}"
-                            order_id_str = str(raw_id).strip()
+                            # STRICT LITERAL EXTRACTION: Take exact Excel cell string without modifications (e.g. apeg12345)
+                            if col_id and pd.notna(row[col_id]):
+                                order_id_str = str(row[col_id]).strip()
+                            else:
+                                order_id_str = f"ORD-{1001+idx}"
                             
                             client_name = str(row[col_client]).strip() if col_client and pd.notna(row[col_client]) else f"Client-{101+idx}"
                             contact_num = str(row[col_contact]).strip() if col_contact and pd.notna(row[col_contact]) else "+201000000000"
                             address_str = str(row[col_address]).strip() if col_address and pd.notna(row[col_address]) else "Cairo, Egypt"
                             
-                            # Automatic geocoding if lat/lon columns are missing or blank
+                            # Universal address scanning & auto-geocoding
                             if col_lat and col_lon and pd.notna(row.get(col_lat)) and pd.notna(row.get(col_lon)):
                                 try:
                                     lat = float(row[col_lat])
@@ -562,7 +560,7 @@ with main_col:
                                 "weight_units": weight_u
                             })
                             
-                        st.success(f"Successfully loaded {len(store['unassigned_orders'])} order(s) for {st.session_state.active_view_brand} with original IDs preserved!")
+                        st.success(f"Successfully loaded {len(store['unassigned_orders'])} order(s) for {st.session_state.active_view_brand} with exact original IDs preserved!")
                 except Exception as e:
                     st.error(f"Error reading orders file: {str(e)}")
 
@@ -686,7 +684,7 @@ with main_col:
                         time.sleep(1)
                     status_box.success("🎉 All pending orders dispatched!")
 
-    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (GEOCODED & CLEAN) ---
+    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (CLEAN POINTS, NO LINES) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
         st.markdown(f"Live Interactive Fleet Map tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
