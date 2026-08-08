@@ -114,19 +114,21 @@ st.session_state.setdefault("language", "EN")
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("is_master", False)
 st.session_state.setdefault("logged_in_brand", None)
-st.session_state.setdefault("active_view_brand", None)
+st.session_state.setdefault("active_view_brand", list(BRANDS_REGISTRY.keys())[0])
 
 if "brands_storage" not in st.session_state:
-    st.session_state.brands_storage = {
-        b_key: {
+    st.session_state.brands_storage = {}
+
+for b_key in BRANDS_REGISTRY.keys():
+    if b_key not in st.session_state.brands_storage:
+        st.session_state.brands_storage[b_key] = {
             "technicians": {},
             "assigned_orders": {},
             "unassigned_orders": [],
             "eod_excel_records": [],
             "customer_ratings": [],
             "expense_logs": []
-        } for b_key in BRANDS_REGISTRY.keys()
-    }
+        }
 
 st.session_state.setdefault("side_chat_history", [
     {"role": "assistant", "content": "👋 Welcome! I am your Brand-Isolated Fleet Operations AI. Ask me about technician workloads or pending orders."}
@@ -182,9 +184,23 @@ if not st.session_state.authenticated:
 # 5. HELPER FUNCTIONS (SCOPED TO ACTIVE BRAND)
 # ==========================================
 def get_active_store():
-    target_brand = st.session_state.active_view_brand
-    if not target_brand or target_brand not in st.session_state.brands_storage:
+    target_brand = st.session_state.get("active_view_brand")
+    if not target_brand or target_brand not in BRANDS_REGISTRY:
         target_brand = list(BRANDS_REGISTRY.keys())[0]
+        st.session_state.active_view_brand = target_brand
+        
+    if "brands_storage" not in st.session_state:
+        st.session_state.brands_storage = {}
+        
+    if target_brand not in st.session_state.brands_storage:
+        st.session_state.brands_storage[target_brand] = {
+            "technicians": {},
+            "assigned_orders": {},
+            "unassigned_orders": [],
+            "eod_excel_records": [],
+            "customer_ratings": [],
+            "expense_logs": []
+        }
     return st.session_state.brands_storage[target_brand]
 
 def run_builtin_autonomous_ai(user_query):
