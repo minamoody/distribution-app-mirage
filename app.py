@@ -22,9 +22,11 @@ st.set_page_config(
 MASTER_KEY = "MIRAGE_MASTER_2026"
 
 BRANDS_REGISTRY = {
-    "Mirage_Cairo": {"pass": "cairo123", "display_name": "Mirage Cairo / فرع القاهرة"},
-    "Mirage_Alex": {"pass": "alex123", "display_name": "Mirage Alexandria / فرع الإسكندرية"},
-    "Mirage_Delta": {"pass": "delta123", "display_name": "Mirage Delta / فرع الدلتا"}
+    "HAIER": {"pass": "haier123", "display_name": "Haier / هاير"},
+    "LG": {"pass": "lg123", "display_name": "LG / إل جي"},
+    "PICO": {"pass": "pico123", "display_name": "Pico / بيكو"},
+    "MIDEA": {"pass": "midea123", "display_name": "Midea / ميديا"},
+    "HIGHSENSE": {"pass": "highsense123", "display_name": "Hisense / هايسنس"}
 }
 
 # ==========================================
