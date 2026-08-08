@@ -128,16 +128,25 @@ if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
 
 
-# --- Helper to load dataframe safely ---
+# --- Helper to load dataframe safely and handle columns ---
 def load_excel_df():
   if not os.path.exists(SHARED_FILE):
     return None
   df = pd.read_excel(SHARED_FILE)
   df.columns = df.columns.str.strip()
+
+  # Automatically inject missing columns if they don't exist
+  updated = False
   if "Password" not in df.columns:
     df["Password"] = ""
+    updated = True
   if "Status" not in df.columns:
     df["Status"] = "Pending"
+    updated = True
+
+  if updated:
+    df.to_excel(SHARED_FILE, index=False)
+
   return df
 
 
@@ -274,7 +283,7 @@ else:
           current_pass = str(matched.loc[idx, "Password"]).strip()
           status = str(matched.loc[idx, "Status"]).strip().lower()
 
-          # SCENARIO 1: No password created yet -> ONLY show ID box and Registration inputs
+          # SCENARIO 1: Employee has NO password yet -> Prompt to create password
           if current_pass == "" or current_pass.lower() == "nan":
             st.info(
                 "✨ First time here? Please create a secure, unique password"
@@ -303,7 +312,7 @@ else:
                   st.success(t["register_success"])
                   st.rerun()
 
-          # SCENARIO 2: Password exists, but NOT approved yet -> Block access completely
+          # SCENARIO 2: Password exists, but NOT approved yet -> Block access
           elif status != "approved":
             password_input = st.text_input(
                 t["password_input_label"], type="password", key="login_p"
