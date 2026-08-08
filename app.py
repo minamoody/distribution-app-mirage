@@ -183,7 +183,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 5. HELPER FUNCTIONS (SCOPED TO ACTIVE BRAND)
+# 5. HELPER FUNCTIONS & SMART GEOCODER
 # ==========================================
 def get_active_store():
     target_brand = st.session_state.get("active_view_brand")
@@ -204,6 +204,53 @@ def get_active_store():
             "expense_logs": []
         }
     return st.session_state.brands_storage[target_brand]
+
+def smart_geocode_address(address_str, index=0, default_lat=30.0444, default_lon=31.2357):
+    """Scans raw address text for Cairo districts and returns precise coordinates with jitter."""
+    text = str(address_str).lower()
+    cairo_districts = {
+        "maadi": (29.9602, 31.2565),
+        "new maadi": (29.9750, 31.2800),
+        "nasr city": (30.0566, 31.3304),
+        "heliopolis": (30.0931, 31.3353),
+        "zamalek": (30.0626, 31.2201),
+        "giza": (30.0131, 31.2089),
+        "new cairo": (30.0333, 31.4833),
+        "tagamoa": (30.0333, 31.4833),
+        "dokki": (30.0423, 31.2136),
+        "mohandessin": (30.0609, 31.2013),
+        "downtown": (30.0444, 31.2357),
+        "cairo": (30.0444, 31.2357),
+        "october": (29.9578, 30.9169),
+        "zayed": (30.0581, 30.9781),
+        "shorouk": (30.1175, 31.5989),
+        "obour": (30.2078, 31.4819),
+        "rehab": (30.0617, 31.4933),
+        "madinaty": (30.0683, 31.6422),
+        "katameya": (29.9833, 31.3667),
+        "mokattam": (30.0167, 31.3000),
+        "ain shams": (30.1333, 31.3333),
+        "matareya": (30.1333, 31.3000),
+        "shoubra": (30.0833, 31.2500),
+        "helwan": (29.8500, 31.3333),
+        "rehab": (30.0617, 31.4933)
+    }
+    
+    for keyword, coords in cairo_districts.items():
+        if keyword in text:
+            # Apply slight jitter so multiple points in the same district don't overlap completely
+            return coords[0] + (index * 0.0015), coords[1] + (index * 0.0015)
+            
+    # Fallback dispersion around Cairo center
+    return default_lat + (index * 0.008), default_lon + (index * 0.008)
+
+def find_column_match(df_columns, possible_keywords):
+    for col in df_columns:
+        col_lower = str(col).lower().strip()
+        for kw in possible_keywords:
+            if kw in col_lower:
+                return col
+    return None
 
 def run_builtin_autonomous_ai(user_query):
     store = get_active_store()
@@ -347,7 +394,7 @@ with main_col:
     # --- MODULE 1: EXCEL UPLOAD HUB ---
     if app_module == T['nav_excel_import']:
         st.title(T['nav_excel_import'])
-        st.markdown(f"Upload separate Excel files for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**. Data is securely isolated per brand.")
+        st.markdown(f"Upload separate Excel files for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**. Order IDs (such as Haier `apeg...` numbers) and raw addresses are fully preserved and automatically mapped.")
         
         st.subheader("📥 Download Blank Daily Bilingual Templates")
         col_down1, col_down2 = st.columns(2)
@@ -406,18 +453,39 @@ with main_col:
                         store["technicians"] = {}
                         store["assigned_orders"] = {}
                         
+                        col_t_name = find_column_match(df_techs.columns, ["name", "اسم", "tech", "employee"])
+                        col_t_status = find_column_match(df_techs.columns, ["status", "حالة"])
+                        col_t_home = find_column_match(df_techs.columns, ["home", "base", "مركز", "location"])
+                        col_t_lat = find_column_match(df_techs.columns, ["lat", "عرض"])
+                        col_t_lon = find_column_match(df_techs.columns, ["lon", "lng", "طول"])
+                        col_t_vtype = find_column_match(df_techs.columns, ["vehicle type", "vehicle", "مركبة", "car"])
+                        col_t_vbrand = find_column_match(df_techs.columns, ["vehicle brand", "brand", "ماركة"])
+                        col_t_scope = find_column_match(df_techs.columns, ["scope", "service", "نطاق"])
+                        col_t_spec = find_column_match(df_techs.columns, ["special", "equipment", "أجهزة", "tools"])
+                        col_t_cap = find_column_match(df_techs.columns, ["capacity", "cap", "سعة"])
+                        col_t_load = find_column_match(df_techs.columns, ["load", "حمل"])
+                        
                         for idx, row in df_techs.iterrows():
-                            name = str(row.get("Name / الاسم", f"Tech-{idx+1}")).strip()
-                            status = str(row.get("Status / الحالة", "Available")).strip()
-                            home_base = str(row.get("Home / المركز الرئيسي (Starting Base)", "Cairo Center")).strip()
-                            lat = float(row.get("Latitude / خط العرض", 30.0444 + (idx * 0.02)))
-                            lon = float(row.get("Longitude / خط الطول", 31.2357 + (idx * 0.02)))
-                            v_type = str(row.get("Vehicle Type / نوع المركبة (Car/Motorcycle)", "Car")).strip()
-                            v_brand = str(row.get("Vehicle Brand / ماركة المركبة", "Toyota")).strip()
-                            service_scope = str(row.get("Service Scope / نطاق الخدمة", "Both")).strip()
-                            specialty = str(row.get("Specialized Equipment / الأجهزة", "General")).strip()
-                            cap = int(row.get("Capacity Units / السعة", 10))
-                            load = int(row.get("Current Load / الحمل الحالي", 0))
+                            name = str(row[col_t_name]).strip() if col_t_name and pd.notna(row[col_t_name]) else f"Tech-{idx+1}"
+                            status = str(row[col_t_status]).strip() if col_t_status and pd.notna(row[col_t_status]) else "Available"
+                            home_base = str(row[col_t_home]).strip() if col_t_home and pd.notna(row[col_t_home]) else "Cairo Center"
+                            
+                            # Geocode or read lat/lon
+                            if col_t_lat and col_t_lon and pd.notna(row.get(col_t_lat)) and pd.notna(row.get(col_t_lon)):
+                                try:
+                                    lat = float(row[col_t_lat])
+                                    lon = float(row[col_t_lon])
+                                except:
+                                    lat, lon = smart_geocode_address(home_base, idx)
+                            else:
+                                lat, lon = smart_geocode_address(home_base, idx)
+                                
+                            v_type = str(row[col_t_vtype]).strip() if col_t_vtype and pd.notna(row[col_t_vtype]) else "Car"
+                            v_brand = str(row[col_t_vbrand]).strip() if col_t_vbrand and pd.notna(row[col_t_vbrand]) else "Toyota"
+                            service_scope = str(row[col_t_scope]).strip() if col_t_scope and pd.notna(row[col_t_scope]) else "Both"
+                            specialty = str(row[col_t_spec]).strip() if col_t_spec and pd.notna(row[col_t_spec]) else "General"
+                            cap = int(row[col_t_cap]) if col_t_cap and pd.notna(row[col_t_cap]) else 10
+                            load = int(row[col_t_load]) if col_t_load and pd.notna(row[col_t_load]) else 0
                             
                             store["technicians"][name] = {
                                 "status": status, "home_base": home_base, "lat": lat, "lon": lon,
@@ -428,10 +496,10 @@ with main_col:
                             
                         st.success(f"Loaded {len(store['technicians'])} technician(s) successfully for {st.session_state.active_view_brand}!")
                 except Exception as e:
-                    st.error(f"Error reading file: {str(e)}")
+                    st.error(f"Error reading technician file: {str(e)}")
 
         with col_order_file:
-            st.subheader("2. Upload Orders File")
+            st.subheader("2. Upload Orders File (Preserves exact Work Order IDs)")
             order_file = st.file_uploader("Upload Orders Excel (.xlsx):", type=["xlsx", "xls"], key=f"order_up_{st.session_state.active_view_brand}")
             
             if order_file is not None:
@@ -442,24 +510,61 @@ with main_col:
                     if st.button("Load Orders into Brand Queue", type="primary"):
                         store["unassigned_orders"] = []
                         
+                        # Dynamically find column names to prevent changing order IDs (like apeg...)
+                        col_id = find_column_match(df_orders.columns, ["order id", "work order", "wo", "apeg", "id", "ticket", "request", "رقم"])
+                        col_client = find_column_match(df_orders.columns, ["client", "customer", "name", "العميل"])
+                        col_contact = find_column_match(df_orders.columns, ["contact", "phone", "mobile", "رقم التواصل", "تليفون"])
+                        col_address = find_column_match(df_orders.columns, ["address", "location", "site", "العنوان", "مكان"])
+                        col_lat = find_column_match(df_orders.columns, ["lat", "latitude", "خط العرض"])
+                        col_lon = find_column_match(df_orders.columns, ["lon", "lng", "longitude", "خط الطول"])
+                        col_priority = find_column_match(df_orders.columns, ["priority", "urgency", "الأولوية"])
+                        col_cargo = find_column_match(df_orders.columns, ["cargo", "item", "product", "الشحنة", "المنتج"])
+                        col_details = find_column_match(df_orders.columns, ["detail", "note", "desc", "التفاصيل"])
+                        col_est = find_column_match(df_orders.columns, ["hour", "time", "est", "ساعات"])
+                        col_weight = find_column_match(df_orders.columns, ["weight", "unit", "الوزن"])
+                        
                         for idx, row in df_orders.iterrows():
+                            # Strictly preserve exact ID string from Excel (e.g. apeg12345)
+                            raw_id = row[col_id] if col_id and pd.notna(row[col_id]) else f"ORD-{1001+idx}"
+                            order_id_str = str(raw_id).strip()
+                            
+                            client_name = str(row[col_client]).strip() if col_client and pd.notna(row[col_client]) else f"Client-{101+idx}"
+                            contact_num = str(row[col_contact]).strip() if col_contact and pd.notna(row[col_contact]) else "+201000000000"
+                            address_str = str(row[col_address]).strip() if col_address and pd.notna(row[col_address]) else "Cairo, Egypt"
+                            
+                            # Automatic geocoding if lat/lon columns are missing or blank
+                            if col_lat and col_lon and pd.notna(row.get(col_lat)) and pd.notna(row.get(col_lon)):
+                                try:
+                                    lat = float(row[col_lat])
+                                    lon = float(row[col_lon])
+                                except:
+                                    lat, lon = smart_geocode_address(address_str, idx)
+                            else:
+                                lat, lon = smart_geocode_address(address_str, idx)
+                                
+                            priority = str(row[col_priority]).strip() if col_priority and pd.notna(row[col_priority]) else "Medium"
+                            cargo = str(row[col_cargo]).strip() if col_cargo and pd.notna(row[col_cargo]) else "Package Goods"
+                            details = str(row[col_details]).strip() if col_details and pd.notna(row[col_details]) else "Standard delivery"
+                            est_hrs = float(row[col_est]) if col_est and pd.notna(row[col_est]) else 2.0
+                            weight_u = int(row[col_weight]) if col_weight and pd.notna(row[col_weight]) else 1
+                            
                             store["unassigned_orders"].append({
-                                "id": str(row.get("Order ID / رقم الطلب", f"ORD-{1001+idx}")).strip(),
-                                "client": str(row.get("Client / العميل", "Corporate Client")).strip(),
-                                "contact": str(row.get("Contact / رقم التواصل", "+201000000000")).strip(),
-                                "address": str(row.get("Address / العنوان", "Cairo, Maadi")).strip(),
-                                "lat": float(row.get("Latitude / خط العرض", 30.0444 + (idx * 0.015))),
-                                "lon": float(row.get("Longitude / خط الطول", 31.2357 + (idx * 0.015))),
-                                "priority": str(row.get("Priority / الأولوية", "Medium")).strip(),
-                                "cargo": str(row.get("Cargo / الشحنة", "Package Goods")).strip(),
-                                "details": str(row.get("Details / التفاصيل", "Standard delivery")).strip(),
-                                "est_hours": float(row.get("Est Hours / ساعات التقدير", 2.0)),
-                                "weight_units": int(row.get("Weight Units / الوزن", 1))
+                                "id": order_id_str,
+                                "client": client_name,
+                                "contact": contact_num,
+                                "address": address_str,
+                                "lat": lat,
+                                "lon": lon,
+                                "priority": priority,
+                                "cargo": cargo,
+                                "details": details,
+                                "est_hours": est_hrs,
+                                "weight_units": weight_u
                             })
                             
-                        st.success(f"Loaded {len(store['unassigned_orders'])} order(s) into queue for {st.session_state.active_view_brand}!")
+                        st.success(f"Successfully loaded {len(store['unassigned_orders'])} order(s) for {st.session_state.active_view_brand} with original IDs preserved!")
                 except Exception as e:
-                    st.error(f"Error reading file: {str(e)}")
+                    st.error(f"Error reading orders file: {str(e)}")
 
     # --- MODULE 2: FIELD PORTAL ---
     elif app_module == T['nav_portal']:
@@ -581,12 +686,11 @@ with main_col:
                         time.sleep(1)
                     status_box.success("🎉 All pending orders dispatched!")
 
-    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (ROBUST & FIXED) ---
+    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (GEOCODED & CLEAN) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
         st.markdown(f"Live Interactive Fleet Map tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
         
-        # 1. Collect all coordinates for automatic bounding calculation
         all_lats = []
         all_lons = []
         
@@ -602,18 +706,14 @@ with main_col:
                     all_lats.append(ord_item.get("lat", 30.0444))
                     all_lons.append(ord_item.get("lon", 31.2357))
 
-        # Default center (Cairo) if no assets loaded yet
         map_center = [30.0444, 31.2357]
-        
-        # Initialize Folium Map
         cairo_map = folium.Map(location=map_center, zoom_start=12, tiles="CartoDB positron")
         
-        # 2. Create Feature Groups for Layer Control
         fg_techs = folium.FeatureGroup(name="🚛 Technicians / الفنيين", show=True)
         fg_unassigned = folium.FeatureGroup(name="📦 Unassigned Orders / الطلبات غير الموزعة", show=True)
         fg_active = folium.FeatureGroup(name="🚚 Active Orders / الطلبات النشطة", show=True)
 
-        # Plot Technicians (Blue)
+        # Plot Technicians
         for t_name, t_info in store["technicians"].items():
             lat = t_info.get("lat", 30.0444)
             lon = t_info.get("lon", 31.2357)
@@ -636,7 +736,7 @@ with main_col:
                 fill_opacity=0.9
             ).add_to(fg_techs)
             
-        # Plot Unassigned Orders (Red)
+        # Plot Unassigned Orders
         for ord_item in store["unassigned_orders"]:
             lat = ord_item.get("lat", 30.0444)
             lon = ord_item.get("lon", 31.2357)
@@ -644,6 +744,7 @@ with main_col:
             <div style="font-family: Arial; font-size: 13px; width: 180px;">
                 <b>📦 Order ID:</b> {ord_item['id']}<br>
                 <b>🏢 Client:</b> {ord_item['client']}<br>
+                <b>📍 Address:</b> {ord_item['address']}<br>
                 <b>⚡ Priority:</b> {ord_item['priority']}<br>
                 <b>📋 Cargo:</b> {ord_item['cargo']}
             </div>
@@ -659,7 +760,7 @@ with main_col:
                 fill_opacity=0.9
             ).add_to(fg_unassigned)
             
-        # Plot Assigned Orders (Orange)
+        # Plot Assigned Active Orders
         for t_name, assigned_list in store["assigned_orders"].items():
             for ord_item in assigned_list:
                 if ord_item.get("status") != "Completed":
@@ -669,8 +770,8 @@ with main_col:
                     <div style="font-family: Arial; font-size: 13px; width: 180px;">
                         <b>🚚 Active Order:</b> {ord_item['id']}<br>
                         <b>🏢 Client:</b> {ord_item['client']}<br>
-                        <b>👨‍🔧 Assigned Tech:</b> {t_name}<br>
-                        <b>📍 Address:</b> {ord_item['address']}
+                        <b>📍 Address:</b> {ord_item['address']}<br>
+                        <b>👨‍🔧 Assigned Tech:</b> {t_name}
                     </div>
                     """
                     folium.CircleMarker(
@@ -684,21 +785,17 @@ with main_col:
                         fill_opacity=0.9
                     ).add_to(fg_active)
 
-        # Add feature groups to map
         fg_techs.add_to(cairo_map)
         fg_unassigned.add_to(cairo_map)
         fg_active.add_to(cairo_map)
 
-        # Add Layer Control UI
         folium.LayerControl(collapsed=False).add_to(cairo_map)
 
-        # 3. Dynamic Bounding Box Fit if assets exist
         if all_lats and all_lons:
             sw = [min(all_lats) - 0.05, min(all_lons) - 0.05]
             ne = [max(all_lats) + 0.05, max(all_lons) + 0.05]
             cairo_map.fit_bounds([sw, ne])
 
-        # Render map in Streamlit
         st_folium(cairo_map, width=1200, height=550)
 
     # --- MODULE 5: WHATSAPP HUB ---
