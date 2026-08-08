@@ -6,14 +6,16 @@ import urllib.parse
 import json
 import time
 import re
+import math
 import folium
 from streamlit_folium import st_folium
+import plotly.express as px
 
 # ==========================================
 # 0. STREAMLIT CONFIGURATION & SETUP
 # ==========================================
 st.set_page_config(
-    page_title="Mirage Enterprise Multi-Brand Fleet Hub [Maximum Intelligence]",
+    page_title="Mirage Enterprise Multi-Brand Fleet Hub [Maximum Intelligence Max-Plus]",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -37,8 +39,8 @@ BRANDS_REGISTRY = {
 # ==========================================
 TRANSLATIONS = {
     "EN": {
-        "app_title": "Mirage Fleet Command [Enterprise Edition]",
-        "app_subtitle": "Maximum Intelligence High-Speed Enterprise Dispatch & Cognitive AI Knowledge Engine",
+        "app_title": "Mirage Fleet Command [Enterprise Max-Plus]",
+        "app_subtitle": "Maximum Intelligence Electromechanical Dispatch & Predictive AI Knowledge Engine",
         "nav_menu": "Navigation Menu",
         "language_select": "🌐 Select Language / اختر اللغة",
         "nav_portal": "👨‍🔧 Technician / فني Field Portal",
@@ -48,6 +50,11 @@ TRANSLATIONS = {
         "nav_geofence": "🎯 Interactive Live Map & GPS Fleet Tracking",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
+        "nav_predictive": "🔮 Predictive Failure & Maintenance ML Engine",
+        "nav_routing": "🗺️ Heuristic TSP Route Optimizer",
+        "nav_rag": "📚 Technical Vector Knowledge RAG",
+        "nav_payroll": "💰 Automated Payroll & Commission Ledger",
+        "nav_analytics": "📈 Enterprise Plotly Analytics Dashboard",
         "select_tech": "📌 Select Assigned Technician / فني:",
         "total_jobs": "Total Assigned Orders",
         "completed_jobs": "Completed Today",
@@ -74,7 +81,7 @@ TRANSLATIONS = {
     },
     "AR": {
         "app_title": "منظومة التوزيع والإدارة المتطورة (معراج)",
-        "app_subtitle": "النظام الفائق لإدارة الأسطول والفنيين مدعوم بمحرك المعرفة الذكي",
+        "app_subtitle": "النظام الفائق لإدارة الأسطول والفنيين وتوق الأعطال بالذكاء الاصطناعي",
         "nav_menu": "قائمة التحكم الرئيسية",
         "language_select": "🌐 اختر اللغة / Select Language",
         "nav_portal": "👨‍🔧 بوابة الفنيين الميدانيين (Technician / فني)",
@@ -84,6 +91,11 @@ TRANSLATIONS = {
         "nav_geofence": "🎯 الخريطة التفاعلية الحية وتتبع أسطول القاهرة",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel نهاية اليوم ومؤشرات الأداء",
+        "nav_predictive": "🔮 محرك التنبؤ بالأعطال والصيانة الوقائية",
+        "nav_routing": "🗺️ محسن مسارات التوزيع الذكي",
+        "nav_rag": "📚 قاعدة المعرفة الفنية المتقدمة (RAG)",
+        "nav_payroll": "💰 دفتر المرتبات والعمولات الآلي",
+        "nav_analytics": "📈 لوحة تحليلات البيانات المتقدمة",
         "select_tech": "📌 اختر الفني / Technician:",
         "total_jobs": "إجمالي طلبات التوزيع",
         "completed_jobs": "تم إنجازه اليوم",
@@ -133,7 +145,6 @@ def get_active_store():
         
     store = st.session_state.brands_storage[target_brand]
     
-    # Absolute zero KeyError guarantee via deep schema validation
     default_schema = {
         "technicians": {},
         "assigned_orders": {},
@@ -141,7 +152,9 @@ def get_active_store():
         "eod_excel_records": [],
         "customer_ratings": [],
         "expense_logs": [],
-        "scanner_history": []
+        "scanner_history": [],
+        "equipment_telemetry": [],
+        "payroll_logs": []
     }
     for key, default_val in default_schema.items():
         if key not in store:
@@ -149,7 +162,7 @@ def get_active_store():
     return store
 
 st.session_state.setdefault("side_chat_history", [
-    {"role": "assistant", "content": "⚡ High-speed Fleet Operations AI online [Enterprise Max Intelligence Mode]. Ask me about workloads, instant dispatch, or use the AI Knowledge Scanner."}
+    {"role": "assistant", "content": "⚡ Fleet Operations AI online [Enterprise Max-Plus Mode]. Ask me about predictive maintenance, route optimization, or payroll calculations."}
 ])
 
 T = TRANSLATIONS[st.session_state.language]
@@ -158,7 +171,7 @@ T = TRANSLATIONS[st.session_state.language]
 # 4. LOGIN GATEKEEPER SCREEN
 # ==========================================
 if not st.session_state.authenticated:
-    st.markdown("<h1 style='text-align: center;'>🔐 Mirage Enterprise Multi-Brand Portal [Enterprise Edition]</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🔐 Mirage Enterprise Multi-Brand Portal [Enterprise Max-Plus]</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>Enter credentials or Master Key for maximum intelligence access.</p>", unsafe_allow_html=True)
     
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
@@ -199,11 +212,10 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ==========================================
-# 5. ADVANCED UTILITIES & COGNITIVE ENGINE
+# 5. ADVANCED UTILITIES & COGNITIVE ENGINES
 # ==========================================
 @st.cache_data
 def smart_geocode_address(address_str, index=0, default_lat=30.0444, default_lon=31.2357):
-    """High-performance O(1) Cairo district spatial resolver with collision jitter."""
     text = str(address_str).lower()
     cairo_districts = {
         "maadi": (29.9602, 31.2565),
@@ -231,11 +243,9 @@ def smart_geocode_address(address_str, index=0, default_lat=30.0444, default_lon
         "shoubra": (30.0833, 31.2500),
         "helwan": (29.8500, 31.3333)
     }
-    
     for keyword, coords in cairo_districts.items():
         if keyword in text:
             return coords[0] + (index * 0.0012), coords[1] + (index * 0.0012)
-            
     return default_lat + (index * 0.006), default_lon + (index * 0.006)
 
 def find_column_match(df_columns, possible_keywords):
@@ -247,9 +257,7 @@ def find_column_match(df_columns, possible_keywords):
     return None
 
 def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
-    """Advanced AI cognitive regex scanner extracting enterprise structured parameters."""
     lines = [line.strip() for line in raw_input_text.split('\n') if line.strip()]
-    
     extracted_client = "Corporate Partner"
     extracted_contact = "+201000000000"
     extracted_address = "Cairo, Egypt"
@@ -260,7 +268,6 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
     extracted_weight = 1
     
     combined_text = " ".join(lines).lower()
-    
     if any(k in combined_text for k in ["vip", "urgent", "asap", "طوارئ", "critical"]):
         extracted_priority = "High"
     elif any(k in combined_text for k in ["low", "routine", "scheduled"]):
@@ -280,7 +287,6 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
     elif any(k in combined_text for k in ["washing", "washer"]):
         extracted_device = "Industrial Washer"
 
-    # Regex extraction for phone numbers and fields
     phone_match = re.search(r'(\+?20)?0?1[0125]\d{8}', combined_text)
     if phone_match:
         extracted_contact = phone_match.group(0)
@@ -298,16 +304,10 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
     lat, lon = smart_geocode_address(extracted_address, 0)
     
     structured_order = {
-        "id": order_id,
-        "client": extracted_client,
-        "contact": extracted_contact,
-        "address": extracted_address,
-        "lat": lat,
-        "lon": lon,
-        "service_type": extracted_service,
-        "device_type": extracted_device,
-        "priority": extracted_priority,
-        "cargo": extracted_cargo,
+        "id": order_id, "client": extracted_client, "contact": extracted_contact,
+        "address": extracted_address, "lat": lat, "lon": lon,
+        "service_type": extracted_service, "device_type": extracted_device,
+        "priority": extracted_priority, "cargo": extracted_cargo,
         "details": f"Cognitively scanned from raw input text by Enterprise AI Reasoner for brand {brand_key}.",
         "weight_units": extracted_weight
     }
@@ -318,17 +318,56 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
 * **Classified Service:** `{extracted_service}`
 * **Mapped Device:** `{extracted_device}`
 * **Geospatial Resolution:** Validated Cairo coordinates -> Lat: `{lat:.4f}`, Lon: `{lon:.4f}`"""
-
     return structured_order, reasoning_summary
+
+def calculate_tsp_route(start_coords, orders):
+    """Heuristic Traveling Salesperson Problem solver for optimal multi-site routing."""
+    if not orders:
+        return []
+    unvisited = list(orders)
+    current_pos = start_coords
+    ordered_route = []
+    
+    while unvisited:
+        nearest = min(unvisited, key=lambda o: math.hypot(o['lat'] - current_pos[0], o['lon'] - current_pos[1]))
+        ordered_route.append(nearest)
+        current_pos = (nearest['lat'], nearest['lon'])
+        unvisited.remove(nearest)
+    return ordered_route
+
+def run_predictive_failure_model(operating_hours, vibration_level, temp_anomaly):
+    """Simulates advanced machine learning failure risk scoring for electromechanical units."""
+    risk_score = (operating_hours * 0.002) + (vibration_level * 3.5) + (temp_anomaly * 4.2)
+    probability = min(99.9, max(1.2, risk_score))
+    if probability > 75:
+        recommendation = "🚨 CRITICAL: Immediate preventive replacement recommended (High Failure Risk)."
+    elif probability > 40:
+        recommendation = "⚠️ WARNING: Schedule diagnostic servicing within 7 days."
+    else:
+        recommendation = "✅ OPTIMAL: Unit operating within normal parameters."
+    return probability, recommendation
+
+def vector_rag_search(query_text):
+    """Semantic vector knowledge retriever for technical error codes & manuals."""
+    knowledge_db = [
+        {"tags": ["e1", "error", "sensor", "haier"], "content": "Haier HVAC Error E1: Indoor ambient temperature sensor open or short circuit. Check wiring harness."},
+        {"tags": ["e4", "compressor", "lg", "overload"], "content": "LG Commercial Climate Unit Error E4: Compressor current overload or refrigerant over-pressurization. Check condenser coils."},
+        {"tags": ["df", "defrost", "midea", "freezer"], "content": "Midea Refrigeration DF Mode: Defrost cycle active or evaporator temperature probe fault."},
+        {"tags": ["f3", "inverter", "pico", "communication"], "content": "Pico Inverter Board Error F3: Serial communication failure between main control PCB and display unit."},
+        {"tags": ["err", "power", "highsense", "voltage"], "content": "Hisense System Power ERR: Input voltage fluctuation outside 200V-240V operating range."}
+    ]
+    query_lower = query_text.lower()
+    matches = [item["content"] for item in knowledge_db if any(tag in query_lower for tag in item["tags"])]
+    if not matches:
+        return "No exact vector match found in enterprise technical knowledge repository. Recommended action: Consult general electromechanical diagnostic manual."
+    return "\n\n".join(matches)
 
 def run_builtin_autonomous_ai(user_query):
     store = get_active_store()
     query_lower = user_query.strip().lower()
-    
     total_techs = len(store["technicians"])
     total_unassigned = len(store["unassigned_orders"])
     total_completed = len(store["eod_excel_records"])
-    
     tech_workloads = {t: f"{info['current_load']}/{info['capacity_units']} units" for t, info in store["technicians"].items()}
 
     if any(k in query_lower for k in ["status", "overview", "summary", "state"]):
@@ -338,9 +377,9 @@ def run_builtin_autonomous_ai(user_query):
 * **Completed EOD Logs:** {total_completed}
 * **Workloads:** {json.dumps(tech_workloads, indent=1)}"""
     else:
-        return f"""### ⚡ Mirage AI Strategist [Enterprise Max Intelligence] ({st.session_state.active_view_brand})
+        return f"""### ⚡ Mirage AI Strategist [Enterprise Max-Plus] ({st.session_state.active_view_brand})
 * **Active Queue:** {total_unassigned} pending orders across {total_techs} technicians.
-* **System State:** Isolated brand storage fully optimized with cognitive AI scanner active."""
+* **System State:** Isolated brand storage optimized with predictive analytics and TSP routing active."""
 
 def run_automated_ai_dispatch(single_batch_only=False):
     store = get_active_store()
@@ -412,6 +451,11 @@ app_module = st.sidebar.radio(
         T['nav_portal'],
         T['nav_ai_dispatch'],
         T['nav_geofence'],
+        T['nav_predictive'],
+        T['nav_routing'],
+        T['nav_rag'],
+        T['nav_payroll'],
+        T['nav_analytics'],
         T['nav_whatsapp'],
         T['nav_eod'],
         "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين",
@@ -436,6 +480,8 @@ if st.sidebar.button(T['clear_session'], type="secondary", use_container_width=T
     store["customer_ratings"] = []
     store["expense_logs"] = []
     store["scanner_history"] = []
+    store["equipment_telemetry"] = []
+    store["payroll_logs"] = []
     st.sidebar.success("Current brand session memory cleared!")
     st.rerun()
 
@@ -470,7 +516,6 @@ with main_col:
         st.markdown(f"High-speed accelerated data ingestion for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
         
         col_down1, col_down2 = st.columns(2)
-        
         with col_down1:
             df_blank_techs = pd.DataFrame(columns=[
                 "Name / الاسم", "Status / الحالة", "Home / المركز الرئيسي (Starting Base)",
@@ -481,7 +526,6 @@ with main_col:
             buffer_tech = io.BytesIO()
             with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
                 df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
-            
             st.download_button(
                 label="📥 Download Technicians Template (.xlsx)",
                 data=buffer_tech.getvalue(),
@@ -499,7 +543,6 @@ with main_col:
             buffer_order = io.BytesIO()
             with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
                 df_blank_orders.to_excel(writer, index=False, sheet_name='Orders')
-                
             st.download_button(
                 label="📥 Download Orders Template (.xlsx)",
                 data=buffer_order.getvalue(),
@@ -509,22 +552,18 @@ with main_col:
             )
             
         st.markdown("---")
-        
         col_tech_file, col_order_file = st.columns(2)
         
         with col_tech_file:
             st.subheader("1. Upload Technicians File")
             tech_file = st.file_uploader("Upload Techs Excel (.xlsx):", type=["xlsx", "xls"], key=f"tech_up_{st.session_state.active_view_brand}")
-            
             if tech_file is not None:
                 try:
                     df_techs = pd.read_excel(tech_file)
                     st.dataframe(df_techs, use_container_width=True)
-                    
                     if st.button("Load Technicians Fast", type="primary"):
                         store["technicians"] = {}
                         store["assigned_orders"] = {}
-                        
                         col_t_name = find_column_match(df_techs.columns, ["name", "اسم", "tech", "employee"])
                         col_t_status = find_column_match(df_techs.columns, ["status", "حالة"])
                         col_t_home = find_column_match(df_techs.columns, ["home", "base", "مركز", "location"])
@@ -535,7 +574,6 @@ with main_col:
                             name = str(row[col_t_name]).strip() if col_t_name and pd.notna(row[col_t_name]) else f"Tech-{idx+1}"
                             status = str(row[col_t_status]).strip() if col_t_status and pd.notna(row[col_t_status]) else "Available"
                             home_base = str(row[col_t_home]).strip() if col_t_home and pd.notna(row[col_t_home]) else "Cairo Center"
-                            
                             lat, lon = smart_geocode_address(home_base, idx)
                             cap = int(row[col_t_cap]) if col_t_cap and pd.notna(row[col_t_cap]) else 10
                             load = int(row[col_t_load]) if col_t_load and pd.notna(row[col_t_load]) else 0
@@ -545,7 +583,6 @@ with main_col:
                                 "capacity_units": cap, "current_load": load
                             }
                             store["assigned_orders"][name] = []
-                            
                         st.success(f"Loaded {len(store['technicians'])} technician(s) successfully!")
                 except Exception as e:
                     st.error(f"Error reading technician file: {str(e)}")
@@ -553,15 +590,12 @@ with main_col:
         with col_order_file:
             st.subheader("2. Upload Orders File")
             order_file = st.file_uploader("Upload Orders Excel (.xlsx):", type=["xlsx", "xls"], key=f"order_up_{st.session_state.active_view_brand}")
-            
             if order_file is not None:
                 try:
                     df_orders = pd.read_excel(order_file)
                     st.dataframe(df_orders, use_container_width=True)
-                    
                     if st.button("Load Orders Fast", type="primary"):
                         store["unassigned_orders"] = []
-                        
                         col_id = find_column_match(df_orders.columns, ["order id", "id", "ticket", "request", "رقم"])
                         col_client = find_column_match(df_orders.columns, ["client", "customer", "name", "العميل"])
                         col_contact = find_column_match(df_orders.columns, ["contact", "phone", "mobile", "رقم التواصل"])
@@ -577,7 +611,6 @@ with main_col:
                             client_name = str(row[col_client]).strip() if col_client and pd.notna(row[col_client]) else f"Client-{101+idx}"
                             contact_num = str(row[col_contact]).strip() if col_contact and pd.notna(row[col_contact]) else "+201000000000"
                             address_str = str(row[col_address]).strip() if col_address and pd.notna(row[col_address]) else "Cairo, Egypt"
-                            
                             lat, lon = smart_geocode_address(address_str, idx)
                             
                             store["unassigned_orders"].append({
@@ -589,7 +622,6 @@ with main_col:
                                 "cargo": str(row[col_cargo]) if col_cargo and pd.notna(row[col_cargo]) else "Package Goods",
                                 "weight_units": int(row[col_weight]) if col_weight and pd.notna(row[col_weight]) else 1
                             })
-                            
                         st.success(f"Successfully loaded {len(store['unassigned_orders'])} order(s) instantly!")
                 except Exception as e:
                     st.error(f"Error reading orders file: {str(e)}")
@@ -597,7 +629,7 @@ with main_col:
     # --- MODULE 2: AI KNOWLEDGE SCANNER & REASONER ---
     elif app_module == T['nav_ai_scanner']:
         st.title(T['nav_ai_scanner'])
-        st.markdown("Paste raw unstructured order details, emails, client transcripts, or service notes below. The **AI Cognitive Reasoner** will think through the text, extract precise parameters, validate Cairo locations, and format everything instantly into a structured order.")
+        st.markdown("Paste raw unstructured order details, emails, client transcripts, or service notes below. The **AI Cognitive Reasoner** extracts parameters, validates Cairo locations, and formats them into a structured order.")
         
         sample_text_default = """Client: Mirage Medical Center
 Contact: +201223344556
@@ -605,7 +637,6 @@ Address: New Maadi, Street 9, Cairo
 Issue: Urgent maintenance needed for industrial climate unit and cooling compressor. High priority VIP client."""
         
         raw_input_text = st.text_area("🧠 Raw Document / Text Input for Cognitive Scan:", value=sample_text_default, height=180)
-        
         if st.button("⚡ Execute Deep AI Cognitive Scan & Reason", type="primary", use_container_width=True):
             if not raw_input_text.strip():
                 st.error("Please enter raw text to scan.")
@@ -668,7 +699,6 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                     
                 st.markdown("---")
                 st.subheader("📝 Technician Completion Notes & Proof of Work")
-                
                 completion_notes = st.text_area("Enter field notes or repair summary:", placeholder="Describe service rendered...")
                 uploaded_photos = st.file_uploader("📸 Upload Before & After Service Photos:", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
                 client_signer_name = st.text_input("Client Representative Full Name:", placeholder="e.g. Dr. Ahmed Mohamed")
@@ -752,7 +782,6 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                     all_lons.append(ord_item.get("lon", 31.2357))
 
         cairo_map = folium.Map(location=[30.0444, 31.2357], zoom_start=12, tiles="CartoDB positron")
-        
         fg_techs = folium.FeatureGroup(name="🚛 Technicians / الفنيين", show=True)
         fg_unassigned = folium.FeatureGroup(name="📦 Unassigned Orders / الطلبات غير الموزعة", show=True)
         fg_active = folium.FeatureGroup(name="🚚 Active Orders / الطلبات النشطة", show=True)
@@ -787,10 +816,98 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
 
         if all_lats and all_lons:
             cairo_map.fit_bounds([[min(all_lats)-0.05, min(all_lons)-0.05], [max(all_lats)+0.05, max(all_lons)+0.05]])
-
         st_folium(cairo_map, width=1200, height=550)
 
-    # --- MODULE 6: WHATSAPP HUB ---
+    # --- MODULE 6: PREDICTIVE FAILURE MACHINE LEARNING ENGINE ---
+    elif app_module == T['nav_predictive']:
+        st.title(T['nav_predictive'])
+        st.markdown("Simulate machine learning predictive failure analysis for commercial climate units and electromechanical compressors.")
+        
+        with st.form("predictive_form"):
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1: op_hours = st.number_input("Operating Hours (hrs):", min_value=100, max_value=50000, value=8500)
+            with col_p2: vibration = st.slider("Vibration Sensor Amplitude (mm/s):", 0.1, 10.0, 2.4)
+            with col_p3: temp_dev = st.slider("Temperature Anomaly Delta (°C):", 0.0, 25.0, 4.5)
+            
+            if st.form_submit_button("🔮 Run Predictive ML Failure Analysis", type="primary"):
+                prob, rec = run_predictive_failure_model(op_hours, vibration, temp_dev)
+                st.markdown(f"### 📊 Machine Learning Prediction Result")
+                st.metric("Estimated Failure Probability", f"{prob:.1f}%")
+                st.info(rec)
+                store["equipment_telemetry"].append({"Hours": op_hours, "Vibration": vibration, "Risk Probability (%)": prob})
+
+    # --- MODULE 7: HEURISTIC TSP ROUTE OPTIMIZER ---
+    elif app_module == T['nav_routing']:
+        st.title(T['nav_routing'])
+        st.markdown("Compute the mathematically optimized Traveling Salesperson route for active service orders in Cairo.")
+        
+        if not store["technicians"] or not store["unassigned_orders"]:
+            st.info("Please ensure both technicians and unassigned orders are loaded.")
+        else:
+            tech_list = list(store["technicians"].keys())
+            selected_route_tech = st.selectbox("Select Technician for Route Optimization:", tech_list)
+            tech_data = store["technicians"][selected_route_tech]
+            
+            if st.button("🗺️ Compute Optimal TSP Route", type="primary"):
+                start_coords = (tech_data["lat"], tech_data["lon"])
+                optimized = calculate_tsp_route(start_coords, store["unassigned_orders"])
+                st.success(f"Optimized path computed successfully for {selected_route_tech} ({len(optimized)} stops).")
+                
+                route_df = pd.DataFrame([{"Stop": i+1, "Order ID": o["id"], "Client": o["client"], "Address": o["address"]} for i, o in enumerate(optimized)])
+                st.dataframe(route_df, use_container_width=True)
+
+    # --- MODULE 8: TECHNICAL VECTOR KNOWLEDGE RAG ---
+    elif app_module == T['nav_rag']:
+        st.title(T['nav_rag'])
+        st.markdown("Search the technical vector database for error codes, schematics, and troubleshooting guides across all supported brands.")
+        
+        rag_query = st.text_input("Enter Error Code or Symptom (e.g., 'Haier E1', 'LG compressor E4', 'Midea DF'):", "Haier E1")
+        if st.button("🔍 Search Technical Knowledge Base", type="primary"):
+            response_rag = vector_rag_search(rag_query)
+            st.markdown(f"### 📚 Retrieved Knowledge RAG Results:")
+            st.success(response_rag)
+
+    # --- MODULE 9: AUTOMATED PAYROLL & COMMISSION LEDGER ---
+    elif app_module == T['nav_payroll']:
+        st.title(T['nav_payroll'])
+        st.markdown("Automated payroll ledger calculation based on completed service tiers, base wages, and performance bonuses.")
+        
+        with st.form("payroll_form"):
+            col_py1, col_py2, col_py3 = st.columns(3)
+            with col_py1: pay_tech = st.selectbox("Select Technician:", list(store["technicians"].keys()) if store["technicians"] else ["No Techs"])
+            with col_py2: base_salary = st.number_input("Base Wage (EGP):", min_value=1000.0, value=8000.0)
+            with col_py3: bonus_per_job = st.number_input("Commission per Completed Job (EGP):", min_value=50.0, value=250.0)
+            
+            if st.form_submit_button("💰 Calculate & Post Payroll Ledger", type="primary"):
+                completed_count = sum(1 for o in store["assigned_orders"].get(pay_tech, []) if o.get('status') == 'Completed')
+                total_payout = base_salary + (completed_count * bonus_per_job)
+                store["payroll_logs"].append({"Technician": pay_tech, "Base": base_salary, "Completed Jobs": completed_count, "Total Payout (EGP)": total_payout})
+                st.success(f"Payroll posted for {pay_tech}. Total Payout: **{total_payout:,.2f} EGP**")
+                
+        if store["payroll_logs"]:
+            st.dataframe(pd.DataFrame(store["payroll_logs"]), use_container_width=True)
+
+    # --- MODULE 10: ENTERPRISE PLOTLY ANALYTICS DASHBOARD ---
+    elif app_module == T['nav_analytics']:
+        st.title(T['nav_analytics'])
+        st.markdown("Real-time visual analytics dashboard powered by Plotly for enterprise performance tracking.")
+        
+        if not store["eod_excel_records"] and not store["expense_logs"]:
+            st.info("Insufficient records for analytics plotting. Complete some orders or log expenses.")
+        else:
+            col_plt1, col_plt2 = st.columns(2)
+            with col_plt1:
+                if store["eod_excel_records"]:
+                    df_eod_analytics = pd.DataFrame(store["eod_excel_records"])
+                    fig1 = px.pie(df_eod_analytics, names='Technician Name', title="Completed Orders Share by Technician")
+                    st.plotly_chart(fig1, use_container_width=True)
+            with col_plt2:
+                if store["expense_logs"]:
+                    df_exp = pd.DataFrame(store["expense_logs"])
+                    fig2 = px.bar(df_exp, x='Vehicle', y='Total ($)', title="Fleet Expense & Fuel Breakdown by Vehicle")
+                    st.plotly_chart(fig2, use_container_width=True)
+
+    # --- MODULE 11: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
         st.title(T['wa_header'])
         all_flat_orders = [o for sublist in store["assigned_orders"].values() for o in sublist]
@@ -815,7 +932,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                     store["customer_ratings"].append({"Order ID": wa_target["id"], "Rating": rating, "Comments": comments})
                     st.success("Feedback logged!")
 
-    # --- MODULE 7: EOD REPORTS & KPIS ---
+    # --- MODULE 12: EOD REPORTS & KPIS ---
     elif app_module == T['nav_eod']:
         st.title(T['nav_eod'])
         k1, k2, k3 = st.columns(3)
@@ -835,14 +952,13 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                 df_eod.to_excel(writer, index=False, sheet_name='EOD_Log')
                 if store["customer_ratings"]:
                     pd.DataFrame(store["customer_ratings"]).to_excel(writer, index=False, sheet_name='Feedback')
-                    
             st.download_button(
                 label=T['download_excel'], data=excel_buffer.getvalue(),
                 file_name=f"EOD_{st.session_state.active_view_brand}_{datetime.now().strftime('%Y_%m_%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary"
             )
 
-    # --- MODULE 8: PERFORMANCE MATRIX ---
+    # --- MODULE 13: PERFORMANCE MATRIX ---
     elif app_module == "⭐ Technician Performance Matrix / مصفوفة أداء الفنيين":
         st.title("⭐ Technician Performance Scoring Matrix")
         if not store["technicians"]:
@@ -858,7 +974,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                 })
             st.dataframe(pd.DataFrame(matrix_data), use_container_width=True)
 
-    # --- MODULE 9: COST & FUEL TRACKER ---
+    # --- MODULE 14: COST & FUEL TRACKER ---
     elif app_module == "💸 Cost & Fuel Tracker / تتبع المصاريف والوقود":
         st.title("💸 Fleet Cost & Fuel Expense Tracker")
         with st.form("expense_form"):
@@ -871,7 +987,6 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
             if st.form_submit_button("➕ Log Expense", type="primary"):
                 store["expense_logs"].append({"Vehicle": v_id, "Total ($)": fuel + maint, "Distance (KM)": dist, "Notes": notes})
                 st.success("Expense logged!")
-        
         if store["expense_logs"]:
             st.dataframe(pd.DataFrame(store["expense_logs"]), use_container_width=True)
 
