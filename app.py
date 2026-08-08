@@ -288,7 +288,7 @@ def run_ai_knowledge_scanner_engine(raw_input_text, brand_key):
         extracted_device = "Industrial Washer"
 
     for line in lines:
-        if "@" in line or "phone:" in line.lower() or "tel" in line.lower() or any(char.isdigit() for char in line and len(line)>8):
+        if "@" in line or "phone:" in line.lower() or "tel" in line.lower() or (any(char.isdigit() for char in line) and len(line) > 8):
             for part in line.split():
                 if any(c.isdigit() for c in part) and len(part) >= 8:
                     extracted_contact = part
@@ -635,7 +635,7 @@ Issue: Urgent maintenance needed for industrial climate unit and cooling compres
                     st.error("Please enter raw text to scan.")
                 else:
                     with st.spinner("AI is thinking and analyzing knowledge parameters..."):
-                        time.sleep(0.4) # Simulated lightning-fast deep reasoning
+                        time.sleep(0.4) 
                         structured_res, reasoning_md = run_ai_knowledge_scanner_engine(raw_input_text, st.session_state.active_view_brand)
                         store["unassigned_orders"].append(structured_res)
                         store["scanner_history"].append({"Timestamp": datetime.now().strftime("%H:%M:%S"), "Order ID": structured_res["id"], "Client": structured_res["client"]})
