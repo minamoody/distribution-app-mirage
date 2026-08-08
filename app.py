@@ -5,6 +5,8 @@ import io
 import urllib.parse
 import json
 import time
+import folium
+from streamlit_folium import st_folium
 
 # ==========================================
 # 0. STREAMLIT CONFIGURATION & SETUP
@@ -41,7 +43,7 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 Technician / فني Field Portal",
         "nav_ai_dispatch": "🤖 Automated AI Dispatch Engine (1-Min Loop)",
         "nav_excel_import": "📁 Excel Upload Hub (Separate Brand Data)",
-        "nav_geofence": "🎯 GPS Geofence & Live Fleet Map",
+        "nav_geofence": "🎯 Interactive Live Map & GPS Fleet Tracking",
         "nav_whatsapp": "💬 WhatsApp & Client Alert Hub",
         "nav_eod": "📊 End-of-Day Excel Reports & KPIs",
         "select_tech": "📌 Select Assigned Technician / فني:",
@@ -56,14 +58,14 @@ TRANSLATIONS = {
         "status": "Order Status",
         "cargo_details": "Cargo / Item Manifest",
         "est_hours": "Est. Completion Time",
-        "submit_summary": "🚀 Submit Log & Sync to EOD Excel",
+        "submit_summary": "🚀 Submit Log, Photos & Sign-off to EOD Excel",
         "ai_dispatch_header": "🤖 Automated Built-in AI Dispatch Engine (Brand-Isolated)",
         "ai_dispatch_desc": "Evaluates technician capacity strictly within your authenticated brand scope.",
         "run_ai_dispatch": "⚡ Run Automated AI Dispatching Engine (Single Pass)",
         "run_1min_loop": "⏱️ Start 1-Minute Automated Dispatch Loop",
         "unassigned_orders": "📦 Unassigned Corporate Orders",
         "tech_roster": "🚛 Technician / فني & Fleet Capacity Roster",
-        "geofence_header": "🎯 Smart Dispatch GPS & Geofence Simulator",
+        "geofence_header": "🎯 Interactive Cairo Fleet Map & Geofence Monitor",
         "wa_header": "💬 WhatsApp Communication & Feedback Hub",
         "send_wa": "📲 Send WhatsApp Dispatch Notification",
         "download_excel": "📥 Download Brand Master EOD Report (.XLSX)",
@@ -77,7 +79,7 @@ TRANSLATIONS = {
         "nav_portal": "👨‍🔧 بوابة الفنيين الميدانيين (Technician / فني)",
         "nav_ai_dispatch": "🤖 محرك التوزيع الذكي المدمج (خاص بالبراند)",
         "nav_excel_import": "📁 مركز رفع ملفات Excel (بيانات مستقلة لكل براند)",
-        "nav_geofence": "🎯 التتبع المباشر والنطاق الجغرافي للبراند",
+        "nav_geofence": "🎯 الخريطة التفاعلية الحية وتتبع أسطول القاهرة",
         "nav_whatsapp": "💬 مركز إشعارات الواتساب والعملاء",
         "nav_eod": "📊 تقارير Excel نهاية اليوم ومؤشرات الأداء",
         "select_tech": "📌 اختر الفني / Technician:",
@@ -92,14 +94,14 @@ TRANSLATIONS = {
         "status": "حالة الطلب",
         "cargo_details": "بيان الشحنة والمنتجات",
         "est_hours": "الوقت المتوقع للإنجاز",
-        "submit_summary": "🚀 إرسال التقرير ومزامنة ملف Excel",
+        "submit_summary": "🚀 إرسال التقرير، الصور، وتوقيع العميل لمزامنة Excel",
         "ai_dispatch_header": "🤖 محرك التوزيع الذكي المدمج (معزول حسب البراند)",
         "ai_dispatch_desc": "يقوم النظام بتوزيع الشحنات الخاصة بالبراند الحالي فقط على الفنيين التابعين له.",
         "run_ai_dispatch": "⚡ تشغيل التوزيع الآلي (دورة واحدة)",
         "run_1min_loop": "⏱️ تشغيل حلقة التوزيع التلقائي كل دقيقة",
         "unassigned_orders": "📦 شحنات الشركات غير الموزعة",
         "tech_roster": "🚛 قائمة الفنيين والطاقة الاستيعابية",
-        "geofence_header": "🎯 محاكي النطاق الجغرافي والتتبع المباشر",
+        "geofence_header": "🎯 الخريطة الحية ومحاكي النطاق الجغرافي بالقاهرة",
         "wa_header": "💬 مركز إشعارات الواتساب وتقييم العملاء",
         "send_wa": "📲 إرسال إشعار التوزيع عبر الواتساب",
         "download_excel": "📥 تحميل تقرير نهاية اليوم Master Excel (.XLSX)",
@@ -222,7 +224,7 @@ def run_builtin_autonomous_ai(user_query):
     else:
         return f"""### 🤖 Mirage AI Strategist ({st.session_state.active_view_brand})
 * **Active Queue:** {total_unassigned} unassigned orders across {total_techs} registered technicians / فنيين.
-* **System State:** Isolated brand storage fully operational."""
+* **System State:** Isolated brand storage fully operational with Live Map & Digital Sign-off enabled."""
 
 def run_automated_ai_dispatch(single_batch_only=False):
     store = get_active_store()
@@ -247,7 +249,7 @@ def run_automated_ai_dispatch(single_batch_only=False):
     return f"Dispatch Cycle Completed: Successfully assigned {dispatched_count} order(s) for {st.session_state.active_view_brand}."
 
 def generate_whatsapp_url(phone_number, text_message):
-    clean_phone = str(phone_number).replace("+", "").replace(" ", "").replace("-", "")
+    clean_phone = str(phone_number).replace("+", "", " ").replace("-", "")
     encoded_text = urllib.parse.quote(text_message)
     return f"https://wa.me/{clean_phone}?text={encoded_text}"
 
@@ -256,7 +258,6 @@ def generate_whatsapp_url(phone_number, text_message):
 # ==========================================
 st.sidebar.markdown(f"### {T['app_title']}")
 
-# Master Key Brand Switcher
 if st.session_state.is_master:
     st.sidebar.warning("🔑 Master Admin Mode Active")
     selected_view = st.sidebar.selectbox(
@@ -353,17 +354,17 @@ with main_col:
         
         with col_down1:
             df_blank_techs = pd.DataFrame(columns=[
-                "Name / الاسم", "Status / الحالة", "Home / المنزل أو المركز الرئيسي (Starting Base)",
+                "Name / الاسم", "Status / الحالة", "Home / المركز الرئيسي (Starting Base)",
+                "Latitude / خط العرض", "Longitude / خط الطول",
                 "Vehicle Type / نوع المركبة (Car/Motorcycle)", "Vehicle Brand / ماركة المركبة", 
-                "Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", 
-                "Specialized Equipment / المعدات والأجهزة التي يصلحها", "Capacity Units / وحدة السعة", "Current Load / الحمل الحالي"
+                "Service Scope / نطاق الخدمة", "Specialized Equipment / الأجهزة", "Capacity Units / السعة", "Current Load / الحمل الحالي"
             ])
             buffer_tech = io.BytesIO()
             with pd.ExcelWriter(buffer_tech, engine='openpyxl') as writer:
                 df_blank_techs.to_excel(writer, index=False, sheet_name='Technicians')
             
             st.download_button(
-                label="📥 Download Empty Technicians / فنيين Template (.xlsx)",
+                label="📥 Download Empty Technicians Template (.xlsx)",
                 data=buffer_tech.getvalue(),
                 file_name=f"Technicians_Template_{st.session_state.active_view_brand}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -373,7 +374,8 @@ with main_col:
         with col_down2:
             df_blank_orders = pd.DataFrame(columns=[
                 "Order ID / رقم الطلب", "Client / العميل", "Contact / رقم التواصل", "Address / العنوان", 
-                "Priority / الأولوية", "Cargo / الشحنة", "Details / التفاصيل", "Est Hours / ساعات التقدير", "Weight Units / وحدات الوزن"
+                "Latitude / خط العرض", "Longitude / خط الطول",
+                "Priority / الأولوية", "Cargo / الشحنة", "Details / التفاصيل", "Est Hours / ساعات التقدير", "Weight Units / الوزن"
             ])
             buffer_order = io.BytesIO()
             with pd.ExcelWriter(buffer_order, engine='openpyxl') as writer:
@@ -407,22 +409,25 @@ with main_col:
                         for idx, row in df_techs.iterrows():
                             name = str(row.get("Name / الاسم", f"Tech-{idx+1}")).strip()
                             status = str(row.get("Status / الحالة", "Available")).strip()
-                            home_base = str(row.get("Home / المنزل أو المركز الرئيسي (Starting Base)", "Main Center")).strip()
+                            home_base = str(row.get("Home / المركز الرئيسي (Starting Base)", "Cairo Center")).strip()
+                            # Default Cairo coordinates with small offsets if missing
+                            lat = float(row.get("Latitude / خط العرض", 30.0444 + (idx * 0.02)))
+                            lon = float(row.get("Longitude / خط الطول", 31.2357 + (idx * 0.02)))
                             v_type = str(row.get("Vehicle Type / نوع المركبة (Car/Motorcycle)", "Car")).strip()
                             v_brand = str(row.get("Vehicle Brand / ماركة المركبة", "Toyota")).strip()
-                            service_scope = str(row.get("Service Scope / نطاق الخدمة (Maintenance/Installation/Both)", "Both")).strip()
-                            specialty = str(row.get("Specialized Equipment / المعدات والأجهزة التي يصلحها", "General")).strip()
-                            cap = int(row.get("Capacity Units / وحدة السعة", 10))
+                            service_scope = str(row.get("Service Scope / نطاق الخدمة", "Both")).strip()
+                            specialty = str(row.get("Specialized Equipment / الأجهزة", "General")).strip()
+                            cap = int(row.get("Capacity Units / السعة", 10))
                             load = int(row.get("Current Load / الحمل الحالي", 0))
                             
                             store["technicians"][name] = {
-                                "status": status, "home_base": home_base, "vehicle_type": v_type,
-                                "vehicle_brand": v_brand, "service_scope": service_scope, "specialty": specialty,
-                                "capacity_units": cap, "current_load": load
+                                "status": status, "home_base": home_base, "lat": lat, "lon": lon,
+                                "vehicle_type": v_type, "vehicle_brand": v_brand, "service_scope": service_scope,
+                                "specialty": specialty, "capacity_units": cap, "current_load": load
                             }
                             store["assigned_orders"][name] = []
                             
-                        st.success(f"Loaded {len(store['technicians'])} technician(s) / فني successfully for {st.session_state.active_view_brand}!")
+                        st.success(f"Loaded {len(store['technicians'])} technician(s) successfully for {st.session_state.active_view_brand}!")
                 except Exception as e:
                     st.error(f"Error reading file: {str(e)}")
 
@@ -443,19 +448,21 @@ with main_col:
                                 "id": str(row.get("Order ID / رقم الطلب", f"ORD-{1001+idx}")).strip(),
                                 "client": str(row.get("Client / العميل", "Corporate Client")).strip(),
                                 "contact": str(row.get("Contact / رقم التواصل", "+201000000000")).strip(),
-                                "address": str(row.get("Address / العنوان", "Cairo")).strip(),
+                                "address": str(row.get("Address / العنوان", "Cairo, Maadi")).strip(),
+                                "lat": float(row.get("Latitude / خط العرض", 29.9602 + (idx * 0.015))),
+                                "lon": float(row.get("Longitude / خط الطول", 31.2565 + (idx * 0.015))),
                                 "priority": str(row.get("Priority / الأولوية", "Medium")).strip(),
                                 "cargo": str(row.get("Cargo / الشحنة", "Package Goods")).strip(),
                                 "details": str(row.get("Details / التفاصيل", "Standard delivery")).strip(),
                                 "est_hours": float(row.get("Est Hours / ساعات التقدير", 2.0)),
-                                "weight_units": int(row.get("Weight Units / وحدات الوزن", 1))
+                                "weight_units": int(row.get("Weight Units / الوزن", 1))
                             })
                             
                         st.success(f"Loaded {len(store['unassigned_orders'])} order(s) into queue for {st.session_state.active_view_brand}!")
                 except Exception as e:
                     st.error(f"Error reading file: {str(e)}")
 
-    # --- MODULE 2: FIELD PORTAL ---
+    # --- MODULE 2: FIELD PORTAL (WITH PHOTO CAPTURE & DIGITAL SIGN-OFF) ---
     elif app_module == T['nav_portal']:
         st.title(T['nav_portal'])
         st.caption(f"Active Brand Scope: {st.session_state.active_view_brand}")
@@ -477,7 +484,7 @@ with main_col:
                 
             st.markdown("---")
             tech_info = store["technicians"].get(selected_tech, {})
-            st.info(f"🏠 **Home Base (نقطة الانطلاق):** {tech_info.get('home_base', 'Main Center')} | 🚛 **Vehicle:** {tech_info.get('vehicle_type')} ({tech_info.get('vehicle_brand')}) | 🔧 **Specialty:** {tech_info.get('specialty')}")
+            st.info(f"🏠 **Home Base:** {tech_info.get('home_base', 'Main Center')} | 🚛 **Vehicle:** {tech_info.get('vehicle_type')} ({tech_info.get('vehicle_brand')}) | 🔧 **Specialty:** {tech_info.get('specialty')}")
             
             if not tech_orders:
                 st.info(f"No active orders assigned to {selected_tech}.")
@@ -497,23 +504,44 @@ with main_col:
                     st.markdown(f"**{T['address']}:** {current_ord['address']}")
                     
                 st.markdown("---")
-                st.subheader("📝 Technician Completion Notes / ملاحظات إنجاز الفني")
-                completion_notes = st.text_area("Enter field notes or repair summary:", placeholder="Enter details...")
+                st.subheader("📝 Technician Completion Notes & Proof of Work")
                 
+                completion_notes = st.text_area("Enter field notes or repair summary:", placeholder="Describe service rendered...")
+                
+                # --- FEATURE 3 ADDITION: Photo Proof & Digital Sign-off ---
+                col_photo, col_sign = st.columns(2)
+                with col_photo:
+                    uploaded_photos = st.file_uploader(
+                        "📸 Upload Before & After Service Photos:", 
+                        type=["jpg", "jpeg", "png"], 
+                        accept_multiple_files=True,
+                        key=f"photos_{current_ord['id']}"
+                    )
+                with col_sign:
+                    st.markdown("✍️ **Client Digital Sign-off Verification**")
+                    client_signer_name = st.text_input("Client Representative Full Name:", placeholder="e.g. Dr. Ahmed Mohamed")
+                    signature_confirmed = st.checkbox("Confirm client acceptance and sign-off on-site")
+
                 if st.button(T['submit_summary'], type="primary"):
                     if not completion_notes.strip():
                         st.error("Please enter completion notes.")
+                    elif not client_signer_name.strip() or not signature_confirmed:
+                        st.error("Client sign-off name and verification checkbox are required to close this ticket.")
                     else:
                         current_ord["status"] = "Completed"
+                        photo_count = len(uploaded_photos) if uploaded_photos else 0
+                        
                         store["eod_excel_records"].append({
                             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "Brand": st.session_state.active_view_brand,
                             "Technician Name": selected_tech,
                             "Order ID": current_ord['id'],
                             "Client": current_ord['client'],
-                            "Notes": completion_notes
+                            "Notes": completion_notes,
+                            "Photos Uploaded": f"{photo_count} file(s)",
+                            "Client Sign-off": client_signer_name
                         })
-                        st.success(f"Order {current_ord['id']} marked COMPLETED!")
+                        st.success(f"Order {current_ord['id']} marked COMPLETED with digital sign-off and {photo_count} photo(s) attached!")
 
     # --- MODULE 3: AUTOMATED AI DISPATCH ENGINE ---
     elif app_module == T['nav_ai_dispatch']:
@@ -555,14 +583,51 @@ with main_col:
                         time.sleep(1)
                     status_box.success("🎉 All pending orders dispatched!")
 
-    # --- MODULE 4: GEOFENCE & ROUTE MAP ---
+    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (FEATURE 2) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
-        if store["technicians"]:
-            base_data = [{"Technician / فني": t, "Home Base": i.get("home_base"), "Vehicle": f"{i.get('vehicle_type')} ({i.get('vehicle_brand')})"} for t, i in store["technicians"].items()]
-            st.dataframe(pd.DataFrame(base_data), use_container_width=True)
-        else:
-            st.info("No technician data loaded.")
+        st.markdown(f"Live Folium Map centered on Cairo, Egypt, tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
+        
+        # Create Folium map centered in Cairo
+        cairo_map = folium.Map(location=[30.0444, 31.2357], zoom_start=11, tiles="CartoDB positron")
+        
+        # Plot Technicians
+        for t_name, t_info in store["technicians"].items():
+            lat = t_info.get("lat", 30.0444)
+            lon = t_info.get("lon", 31.2357)
+            folium.Marker(
+                location=[lat, lon],
+                popup=f"<b>Technician:</b> {t_name}<br><b>Base:</b> {t_info.get('home_base')}<br><b>Load:</b> {t_info['current_load']}/{t_info['capacity_units']}",
+                tooltip=f"Tech: {t_name}",
+                icon=folium.Icon(color="blue", icon="wrench", prefix="fa")
+            ).add_to(cairo_map)
+            
+        # Plot Unassigned Orders
+        for ord_item in store["unassigned_orders"]:
+            lat = ord_item.get("lat", 30.0)
+            lon = ord_item.get("lon", 31.2)
+            folium.Marker(
+                location=[lat, lon],
+                popup=f"<b>Unassigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Priority:</b> {ord_item['priority']}",
+                tooltip=f"Order: {ord_item['id']}",
+                icon=folium.Icon(color="red", icon="shopping-cart", prefix="fa")
+            ).add_to(cairo_map)
+            
+        # Plot Assigned Orders
+        for t_name, assigned_list in store["assigned_orders"].items():
+            for ord_item in assigned_list:
+                if ord_item.get("status") != "Completed":
+                    lat = ord_item.get("lat", 30.0)
+                    lon = ord_item.get("lon", 31.2)
+                    folium.Marker(
+                        location=[lat, lon],
+                        popup=f"<b>Assigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Tech:</b> {t_name}",
+                        tooltip=f"Active: {ord_item['id']}",
+                        icon=folium.Icon(color="orange", icon="truck", prefix="fa")
+                    ).add_to(cairo_map)
+
+        # Render map in Streamlit using streamlit-folium
+        st_folium(cairo_map, width=1200, height=550)
 
     # --- MODULE 5: WHATSAPP HUB ---
     elif app_module == T['nav_whatsapp']:
