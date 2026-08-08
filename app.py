@@ -448,8 +448,8 @@ with main_col:
                                 "client": str(row.get("Client / العميل", "Corporate Client")).strip(),
                                 "contact": str(row.get("Contact / رقم التواصل", "+201000000000")).strip(),
                                 "address": str(row.get("Address / العنوان", "Cairo, Maadi")).strip(),
-                                "lat": float(row.get("Latitude / خط العرض", 29.9602 + (idx * 0.015))),
-                                "lon": float(row.get("Longitude / خط الطول", 31.2565 + (idx * 0.015))),
+                                "lat": float(row.get("Latitude / خط العرض", 30.0444 + (idx * 0.015))),
+                                "lon": float(row.get("Longitude / خط الطول", 31.2357 + (idx * 0.015))),
                                 "priority": str(row.get("Priority / الأولوية", "Medium")).strip(),
                                 "cargo": str(row.get("Cargo / الشحنة", "Package Goods")).strip(),
                                 "details": str(row.get("Details / التفاصيل", "Standard delivery")).strip(),
@@ -461,7 +461,7 @@ with main_col:
                 except Exception as e:
                     st.error(f"Error reading file: {str(e)}")
 
-    # --- MODULE 2: FIELD PORTAL (WITH PHOTO CAPTURE & DIGITAL SIGN-OFF) ---
+    # --- MODULE 2: FIELD PORTAL ---
     elif app_module == T['nav_portal']:
         st.title(T['nav_portal'])
         st.caption(f"Active Brand Scope: {st.session_state.active_view_brand}")
@@ -581,62 +581,124 @@ with main_col:
                         time.sleep(1)
                     status_box.success("🎉 All pending orders dispatched!")
 
-    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (FIXED WITH BULLETPROOF CIRCLE MARKERS) ---
+    # --- MODULE 4: INTERACTIVE LIVE MAP & GPS FLEET TRACKING (ROBUST & FIXED) ---
     elif app_module == T['nav_geofence']:
         st.title(T['geofence_header'])
-        st.markdown(f"Live Folium Map centered on Cairo, Egypt, tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
+        st.markdown(f"Live Interactive Fleet Map tracking active assets for **{BRANDS_REGISTRY[st.session_state.active_view_brand]['display_name']}**.")
         
-        # Create Folium map centered in Cairo
-        cairo_map = folium.Map(location=[30.0444, 31.2357], zoom_start=11, tiles="CartoDB positron")
+        # 1. Collect all coordinates for automatic bounding calculation
+        all_lats = []
+        all_lons = []
         
-        # Plot Technicians (Blue Circle Markers)
+        for t_info in store["technicians"].values():
+            all_lats.append(t_info.get("lat", 30.0444))
+            all_lons.append(t_info.get("lon", 31.2357))
+        for ord_item in store["unassigned_orders"]:
+            all_lats.append(ord_item.get("lat", 30.0444))
+            all_lons.append(ord_item.get("lon", 31.2357))
+        for assigned_list in store["assigned_orders"].values():
+            for ord_item in assigned_list:
+                if ord_item.get("status") != "Completed":
+                    all_lats.append(ord_item.get("lat", 30.0444))
+                    all_lons.append(ord_item.get("lon", 31.2357))
+
+        # Default center (Cairo) if no assets loaded yet
+        map_center = [30.0444, 31.2357]
+        
+        # Initialize Folium Map
+        cairo_map = folium.Map(location=map_center, zoom_start=12, tiles="CartoDB positron")
+        
+        # 2. Create Feature Groups for Layer Control
+        fg_techs = folium.FeatureGroup(name="🚛 Technicians / الفنيين", show=True)
+        fg_unassigned = folium.FeatureGroup(name="📦 Unassigned Orders / الطلبات غير الموزعة", show=True)
+        fg_active = folium.FeatureGroup(name="🚚 Active Orders / الطلبات النشطة", show=True)
+
+        # Plot Technicians (Blue)
         for t_name, t_info in store["technicians"].items():
             lat = t_info.get("lat", 30.0444)
             lon = t_info.get("lon", 31.2357)
+            popup_html = f"""
+            <div style="font-family: Arial; font-size: 13px; width: 180px;">
+                <b>🚛 Technician:</b> {t_name}<br>
+                <b>🏠 Base:</b> {t_info.get('home_base')}<br>
+                <b>📊 Workload:</b> {t_info['current_load']}/{t_info['capacity_units']} units<br>
+                <b>🚗 Vehicle:</b> {t_info.get('vehicle_type')} ({t_info.get('vehicle_brand')})
+            </div>
+            """
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=10,
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=f"Tech: {t_name}",
+                color="#1E3A8A",
+                fill=True,
+                fill_color="#3B82F6",
+                fill_opacity=0.9
+            ).add_to(fg_techs)
+            
+        # Plot Unassigned Orders (Red)
+        for ord_item in store["unassigned_orders"]:
+            lat = ord_item.get("lat", 30.0444)
+            lon = ord_item.get("lon", 31.2357)
+            popup_html = f"""
+            <div style="font-family: Arial; font-size: 13px; width: 180px;">
+                <b>📦 Order ID:</b> {ord_item['id']}<br>
+                <b>🏢 Client:</b> {ord_item['client']}<br>
+                <b>⚡ Priority:</b> {ord_item['priority']}<br>
+                <b>📋 Cargo:</b> {ord_item['cargo']}
+            </div>
+            """
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=9,
-                popup=f"<b>Technician:</b> {t_name}<br><b>Base:</b> {t_info.get('home_base')}<br><b>Load:</b> {t_info['current_load']}/{t_info['capacity_units']}",
-                tooltip=f"Tech: {t_name}",
-                color="blue",
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=f"Unassigned: {ord_item['id']}",
+                color="#991B1B",
                 fill=True,
-                fill_color="blue",
-                fill_opacity=0.8
-            ).add_to(cairo_map)
+                fill_color="#EF4444",
+                fill_opacity=0.9
+            ).add_to(fg_unassigned)
             
-        # Plot Unassigned Orders (Red Circle Markers)
-        for ord_item in store["unassigned_orders"]:
-            lat = ord_item.get("lat", 30.0)
-            lon = ord_item.get("lon", 31.2)
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=8,
-                popup=f"<b>Unassigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Priority:</b> {ord_item['priority']}",
-                tooltip=f"Order: {ord_item['id']}",
-                color="red",
-                fill=True,
-                fill_color="red",
-                fill_opacity=0.8
-            ).add_to(cairo_map)
-            
-        # Plot Assigned Orders (Orange Circle Markers)
+        # Plot Assigned Orders (Orange)
         for t_name, assigned_list in store["assigned_orders"].items():
             for ord_item in assigned_list:
                 if ord_item.get("status") != "Completed":
-                    lat = ord_item.get("lat", 30.0)
-                    lon = ord_item.get("lon", 31.2)
+                    lat = ord_item.get("lat", 30.0444)
+                    lon = ord_item.get("lon", 31.2357)
+                    popup_html = f"""
+                    <div style="font-family: Arial; font-size: 13px; width: 180px;">
+                        <b>🚚 Active Order:</b> {ord_item['id']}<br>
+                        <b>🏢 Client:</b> {ord_item['client']}<br>
+                        <b>👨‍🔧 Assigned Tech:</b> {t_name}<br>
+                        <b>📍 Address:</b> {ord_item['address']}
+                    </div>
+                    """
                     folium.CircleMarker(
                         location=[lat, lon],
-                        radius=8,
-                        popup=f"<b>Assigned Order:</b> {ord_item['id']}<br><b>Client:</b> {ord_item['client']}<br><b>Tech:</b> {t_name}",
+                        radius=9,
+                        popup=folium.Popup(popup_html, max_width=250),
                         tooltip=f"Active: {ord_item['id']}",
-                        color="orange",
+                        color="#C2410C",
                         fill=True,
-                        fill_color="orange",
-                        fill_opacity=0.8
-                    ).add_to(cairo_map)
+                        fill_color="#F97316",
+                        fill_opacity=0.9
+                    ).add_to(fg_active)
 
-        # Render map in Streamlit using streamlit-folium
+        # Add feature groups to map
+        fg_techs.add_to(cairo_map)
+        fg_unassigned.add_to(cairo_map)
+        fg_active.add_to(cairo_map)
+
+        # Add Layer Control UI
+        folium.LayerControl(collapsed=False).add_to(cairo_map)
+
+        # 3. Dynamic Bounding Box Fit if assets exist
+        if all_lats and all_lons:
+            sw = [min(all_lats) - 0.05, min(all_lons) - 0.05]
+            ne = [max(all_lats) + 0.05, max(all_lons) + 0.05]
+            cairo_map.fit_bounds([sw, ne])
+
+        # Render map in Streamlit
         st_folium(cairo_map, width=1200, height=550)
 
     # --- MODULE 5: WHATSAPP HUB ---
