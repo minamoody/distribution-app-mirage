@@ -18,7 +18,7 @@ translations = {
         "upload_label": "Upload Employees Excel File",
         "remove_btn": "Remove Excel Sheet (Logout Everyone)",
         "upload_success": (
-            "Excel file uploaded successfully! Employees can now register/login."
+            "Excel file uploaded successfully! Employees can now register."
         ),
         "remove_success": "Excel file removed. All active sessions logged out.",
         "upload_warning": (
@@ -27,28 +27,36 @@ translations = {
         ),
         "input_label": "National ID (الرقم القومي):",
         "password_input_label": "Password (كلمة المرور):",
-        "new_password_label": "Create Your Password (أنشئ كلمة المرور الخاصة بك):",
+        "new_password_label": "Create Your Password (أنشئ كلمة المرور):",
         "confirm_password_label": "Confirm Password (تأكيد كلمة المرور):",
-        "create_pass_btn": "Create Password & Login",
+        "register_btn": "Register & Request Approval",
         "login_btn": "Login",
         "logout_btn": "Logout",
         "empty_input": "Please fill in all required fields.",
         "pass_mismatch": "Passwords do not match. Please try again.",
         "pass_taken": (
             "⚠️ This password is already taken by another employee. Please"
-            " choose a different unique password."
+            " choose a different one."
         ),
         "error_id": "Incorrect National ID. Please check and try again.",
-        "error_login": (
-            "Incorrect National ID or Password. Please check and try again."
+        "error_login": "Incorrect Password. Please check and try again.",
+        "pending_approval": (
+            "⏳ Your account is registered, but **waiting for Admin approval**."
+            " Please contact your administrator to unlock your account."
         ),
-        "pass_created_success": "Password created and saved successfully!",
+        "register_success": (
+            "Password created successfully! Your account is now pending admin"
+            " approval."
+        ),
         "error_read": "Error reading file: {error}",
         "dashboard_title": "Detailed Payroll & Salary Breakdown",
         "welcome_banner": "Welcome, {name}!",
         "id_display": "National ID:",
         "table_col_key": "Field / Column",
         "table_col_val": "Value",
+        "admin_approvals_header": "👥 Employee Approvals",
+        "approve_btn": "Approve",
+        "revoke_btn": "Revoke Access",
     },
     "العربية": {
         "title": "🔐 بوابة تسجيل دخول الموظفين",
@@ -61,8 +69,7 @@ translations = {
         "upload_label": "رفع ملف الـ Excel للموظفين",
         "remove_btn": "حذف ملف الـ Excel (تسجيل خروج الجميع)",
         "upload_success": (
-            "تم رفع ملف الـ Excel بنجاح! يمكن للموظفين إنشاء كلمات المرور"
-            " وتسجيل الدخول."
+            "تم رفع ملف الـ Excel بنجاح! يمكن للموظفين التسجيل الآن."
         ),
         "remove_success": "تم حذف الملف وتسجيل خروج جميع الجلسات النشطة.",
         "upload_warning": (
@@ -73,24 +80,32 @@ translations = {
         "password_input_label": "كلمة المرور (Password):",
         "new_password_label": "أنشئ كلمة المرور الخاصة بك:",
         "confirm_password_label": "تأكيد كلمة المرور:",
-        "create_pass_btn": "إنشاء كلمة المرور وتسجيل الدخول",
+        "register_btn": "التسجيل وطلب الموافقة",
         "login_btn": "تسجيل الدخول",
         "logout_btn": "تسجيل الخروج",
         "empty_input": "الرجاء ملء جميع الحقول المطلوبة.",
         "pass_mismatch": "كلمتا المرور غير متطابقتين. يرجى المحاولة مرة أخرى.",
         "pass_taken": (
-            "⚠️ كلمة المرور هذه مستخدمة بالفعل من قبل موظف آخر. يرجى اختيار كلمة"
-            " مرور فريدة أخرى."
+            "⚠️ كلمة المرور هذه مستخدمة من قبل موظف آخر. اختر كلمة مرور فريدة."
         ),
         "error_id": "الرقم القومي غير صحيح. يرجى التحقق والمحاولة مرة أخرى.",
-        "error_login": "الرقم القومي أو كلمة المرور غير صحيحة. يرجى التحقق.",
-        "pass_created_success": "تم إنشاء وحفظ كلمة المرور بنجاح!",
+        "error_login": "كلمة المرور غير صحيحة. يرجى التحقق.",
+        "pending_approval": (
+            "⏳ حسابك مسجل ولكن **في انتظار موافقة المسؤول (Admin)**. يرجى التواصل"
+            " مع الإدارة لتفعيل حسابك."
+        ),
+        "register_success": (
+            "تم إنشاء كلمة المرور بنجاح! حسابك في انتظار موافقة المسؤول الآن."
+        ),
         "error_read": "خطأ في قراءة الملف: {error}",
         "dashboard_title": "تفصيل مفردات الراتب والبيانات المالية",
         "welcome_banner": "أهلاً بك يا {name}!",
         "id_display": "الرقم القومي:",
         "table_col_key": "الحقل / العمود",
         "table_col_val": "القيمة",
+        "admin_approvals_header": "👥 موافقة حسابات الموظفين",
+        "approve_btn": "موافقة",
+        "revoke_btn": "إلغاء التفعيل",
     },
 }
 
@@ -111,6 +126,20 @@ if "employee_row_data" not in st.session_state:
   st.session_state.employee_row_data = None
 if "admin_authenticated" not in st.session_state:
   st.session_state.admin_authenticated = False
+
+
+# --- Helper to load dataframe safely ---
+def load_excel_df():
+  if not os.path.exists(SHARED_FILE):
+    return None
+  df = pd.read_excel(SHARED_FILE)
+  df.columns = df.columns.str.strip()
+  if "Password" not in df.columns:
+    df["Password"] = ""
+  if "Status" not in df.columns:
+    df["Status"] = "Pending"
+  return df
+
 
 # --- Admin Section (Sidebar with Password Protection) ---
 st.sidebar.markdown("---")
@@ -134,16 +163,41 @@ else:
     try:
       df_upload = pd.read_excel(uploaded_file)
       df_upload.columns = df_upload.columns.str.strip()
-      # Automatically ensure a 'Password' column exists in the dataframe
-      if "Password" not in df_upload.columns:
-        df_upload["Password"] = ""
-
+      df_upload["Password"] = ""
+      df_upload["Status"] = "Pending"
       df_upload.to_excel(SHARED_FILE, index=False)
       st.sidebar.success(t["upload_success"])
+      st.rerun()
     except Exception as e:
       st.sidebar.error(t["error_read"].format(error=e))
 
   if os.path.exists(SHARED_FILE):
+    st.sidebar.markdown("---")
+    st.sidebar.subheader(t["admin_approvals_header"])
+    df_admin = load_excel_df()
+    if df_admin is not None:
+      for idx, row in df_admin.iterrows():
+        name = row.get("الاسم", f"Employee {idx}")
+        status = str(row.get("Status", "Pending")).strip()
+        has_pass = (
+            str(row.get("Password", "")).strip() not in ["", "nan", "None"]
+        )
+
+        if has_pass:
+          col_a, col_b = st.sidebar.columns([2, 1])
+          col_a.write(f"**{name}** ({status})")
+          if status.lower() == "approved":
+            if col_b.button(t["revoke_btn"], key=f"rev_{idx}"):
+              df_admin.at[idx, "Status"] = "Pending"
+              df_admin.to_excel(SHARED_FILE, index=False)
+              st.rerun()
+          else:
+            if col_b.button(t["approve_btn"], key=f"app_{idx}"):
+              df_admin.at[idx, "Status"] = "Approved"
+              df_admin.to_excel(SHARED_FILE, index=False)
+              st.rerun()
+
+    st.sidebar.markdown("---")
     if st.sidebar.button(t["remove_btn"]):
       os.remove(SHARED_FILE)
       st.sidebar.success(t["remove_success"])
@@ -153,7 +207,7 @@ else:
     st.session_state.admin_authenticated = False
     st.rerun()
 
-# Check globally if the shared file exists on the server backend
+# Check globally if the shared file exists
 file_exists = os.path.exists(SHARED_FILE)
 
 if not file_exists and st.session_state.logged_in_user is not None:
@@ -179,8 +233,7 @@ if st.session_state.logged_in_user:
 
     table_data = []
     for col_name, val in row_data.items():
-      # Hide password column from the employee dashboard view for security
-      if str(col_name).strip().lower() in ["password", "كلمة المرور"]:
+      if str(col_name).strip().lower() in ["password", "status", "كلمة المرور"]:
         continue
 
       display_val = val
@@ -207,12 +260,7 @@ else:
     st.warning(t["upload_warning"])
   else:
     try:
-      df = pd.read_excel(SHARED_FILE)
-      df.columns = df.columns.str.strip()
-
-      if "Password" not in df.columns:
-        df["Password"] = ""
-
+      df = load_excel_df()
       national_id_input = st.text_input(t["input_label"])
 
       if national_id_input:
@@ -224,18 +272,14 @@ else:
         if not matched.empty:
           idx = matched.index[0]
           current_pass = str(matched.loc[idx, "Password"]).strip()
+          status = str(matched.loc[idx, "Status"]).strip().lower()
 
-          # SCENARIO 1: Employee has NO password yet -> Allow them to create one
-          if (
-              pd.isna(matched.loc[idx, "Password"])
-              or current_pass == ""
-              or current_pass.lower() == "nan"
-          ):
+          # SCENARIO 1: No password created yet -> ONLY show ID box and Registration inputs
+          if current_pass == "" or current_pass.lower() == "nan":
             st.info(
                 "✨ First time here? Please create a secure, unique password"
                 " for your account."
             )
-
             new_pass = st.text_input(
                 t["new_password_label"], type="password", key="new_p"
             )
@@ -243,42 +287,45 @@ else:
                 t["confirm_password_label"], type="password", key="conf_p"
             )
 
-            if st.button(t["create_pass_btn"]):
+            if st.button(t["register_btn"]):
               if not new_pass or not confirm_pass:
                 st.warning(t["empty_input"])
               elif new_pass != confirm_pass:
                 st.error(t["pass_mismatch"])
               else:
-                # Check uniqueness across all employee passwords
                 existing_passes = df["Password"].astype(str).str.strip().tolist()
                 if new_pass.strip() in existing_passes:
                   st.error(t["pass_taken"])
                 else:
-                  # Save password back to DataFrame and update Excel file automatically
                   df.at[idx, "Password"] = new_pass.strip()
+                  df.at[idx, "Status"] = "Pending"
                   df.to_excel(SHARED_FILE, index=False)
-
-                  st.success(t["pass_created_success"])
-                  st.session_state.logged_in_user = matched.loc[idx, "الاسم"]
-                  st.session_state.logged_in_id = national_id_input.strip()
-                  st.session_state.employee_row_data = (
-                      df.loc[idx].to_dict()
-                  )  # type: ignore[attr-defined]
+                  st.success(t["register_success"])
                   st.rerun()
 
-          # SCENARIO 2: Password ALREADY exists -> Require normal login password check
+          # SCENARIO 2: Password exists, but NOT approved yet -> Block access completely
+          elif status != "approved":
+            password_input = st.text_input(
+                t["password_input_label"], type="password", key="login_p"
+            )
+            if st.button(t["login_btn"]):
+              if password_input.strip() == current_pass:
+                st.warning(t["pending_approval"])
+              else:
+                st.error(t["error_login"])
+
+          # SCENARIO 3: Password exists AND Approved -> Allow login
           else:
             password_input = st.text_input(
                 t["password_input_label"], type="password", key="login_p"
             )
-
             if st.button(t["login_btn"]):
               if not password_input:
                 st.warning(t["empty_input"])
               elif password_input.strip() == current_pass:
                 st.session_state.logged_in_user = matched.loc[idx, "الاسم"]
                 st.session_state.logged_in_id = national_id_input.strip()
-                st.session_state.employee_row_data = matched.loc[idx].to_dict()  # type: ignore[attr-defined]
+                st.session_state.employee_row_data = matched.loc[idx].to_dict()
                 st.rerun()
               else:
                 st.error(t["error_login"])
